@@ -19,10 +19,31 @@
     @include('admin.attendance.partials.table')
   </div>
 </div>
+<!-- Photo Preview Modal -->
+<div class="modal fade" id="photoPreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Photo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="photoPreviewImg" src="" alt="Attendance photo" class="img-fluid" />
+      </div>
+      <div class="modal-footer justify-content-center">
+        <a id="photoDownloadBtn" href="#" class="btn btn-sm btn-primary" download>Download</a>
+      </div>
+    </div>
+  </div>
+  </div>
 <script>
   (function() {
     const filtersWrap = document.getElementById('attendanceFiltersWrap');
     const tableWrap = document.getElementById('attendancesTable');
+    const modalEl = document.getElementById('photoPreviewModal');
+    const modalImg = document.getElementById('photoPreviewImg');
+    const modalDownloadBtn = document.getElementById('photoDownloadBtn');
+    let bootstrapModal;
     let form = filtersWrap.querySelector('#attendanceFilters');
     let debounceTimer;
 
@@ -36,6 +57,32 @@
         a.addEventListener('click', function(e){
           e.preventDefault();
           updateTable(this.href);
+        });
+      });
+
+      // Bind photo thumbnail clicks
+      tableWrap.querySelectorAll('[data-photo-url]').forEach(el => {
+        el.addEventListener('click', function(e){
+          e.preventDefault();
+          const url = this.getAttribute('data-photo-url');
+          if (!url) return;
+          modalImg.src = url;
+          if (modalDownloadBtn) {
+            modalDownloadBtn.href = url;
+            // Try to set a sensible filename for the download
+            const filename = (url.split('?')[0].split('/').pop()) || 'photo.jpg';
+            modalDownloadBtn.setAttribute('download', filename);
+          }
+          if (!bootstrapModal) {
+            bootstrapModal = new (window.bootstrap?.Modal || function(){}) (modalEl);
+          }
+          // Fallback if Bootstrap Modal not available
+          if (bootstrapModal && bootstrapModal.show) {
+            bootstrapModal.show();
+          } else {
+            modalEl.classList.add('show');
+            modalEl.style.display = 'block';
+          }
         });
       });
     }

@@ -9,7 +9,7 @@
         <th>Status</th>
         <th>Marked At</th>
         <th>Location</th>
-        <th>Selfie</th>
+        <th>Photo</th>
         <th class="text-end">Actions</th>
       </tr>
     </thead>
@@ -25,7 +25,10 @@
           <td>{{ $attendance->lat && $attendance->lng ? $attendance->lat . ', ' . $attendance->lng : '—' }}</td>
           <td>
             @if($attendance->selfie_path)
-              <a href="{{ Storage::url($attendance->selfie_path) }}" target="_blank">View</a>
+              @php($photoUrl = \Illuminate\Support\Facades\Storage::url($attendance->selfie_path))
+              <a href="#" data-photo-url="{{ $photoUrl }}" title="View photo">
+                <img src="{{ $photoUrl }}" alt="Attendance photo" class="img-thumbnail" loading="lazy" style="height: 48px; width: auto;" />
+              </a>
             @else
               —
             @endif

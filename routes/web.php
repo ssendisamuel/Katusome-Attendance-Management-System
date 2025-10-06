@@ -16,14 +16,29 @@ use App\Http\Controllers\Admin\LecturerController;
 use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\ScheduleSeriesController;
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\LecturerAttendanceController;
 
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\PasswordResetController;
 
-// Main Page Route
-Route::get('/', [HomePage::class, 'index'])->name('pages-home');
+// Main Page Route -> Redirect to dashboards
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+        if ($user->role === 'admin') {
+            return redirect()->route('admin.dashboard');
+        }
+        if ($user->role === 'student') {
+            return redirect()->route('student.dashboard');
+        }
+        if ($user->role === 'lecturer') {
+            return redirect()->route('lecturer.attendance.index');
+        }
+    }
+    return redirect()->route('login');
+});
 Route::get('/page-2', [Page2::class, 'index'])->name('pages-page-2');
 
 // locale
@@ -63,6 +78,10 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::post('series/generate-all', [ScheduleSeriesController::class, 'generateAll'])
         ->name('series.generate-all');
     Route::resource('attendance', AttendanceController::class)->only(['index', 'destroy']);
+
+    // Settings - Location
+    Route::get('settings/location', [SettingsController::class, 'locationEdit'])->name('settings.location.edit');
+    Route::put('settings/location', [SettingsController::class, 'locationUpdate'])->name('settings.location.update');
 
     // Admin dashboard view
     Route::get('dashboard', function () {
