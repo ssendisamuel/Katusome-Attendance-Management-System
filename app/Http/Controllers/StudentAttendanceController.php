@@ -8,9 +8,36 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use App\Models\LocationSetting;
 
 class StudentAttendanceController extends Controller
 {
+    public function today(Request $request)
+    {
+        $user = Auth::user();
+        $student = optional($user)->student;
+        if (!$student) {
+            return redirect()->route('login')->withErrors(['email' => 'You must be a student to access attendance.']);
+        }
+
+        $today = Carbon::today();
+        $schedules = Schedule::with(['course', 'lecturer'])
+            ->where('group_id', $student->group_id)
+            ->whereDate('start_at', $today)
+            ->orderBy('start_at')
+            ->get();
+
+        $attendanceBySchedule = Attendance::whereIn('schedule_id', $schedules->pluck('id'))
+            ->where('student_id', $student->id)
+            ->get()
+            ->keyBy('schedule_id');
+
+        return view('attendance.student_today', [
+            'student' => $student,
+            'schedules' => $schedules,
+            'attendanceBySchedule' => $attendanceBySchedule,
+        ]);
+    }
     public function create(Request $request)
     {
         $user = Auth::user();
@@ -26,7 +53,8 @@ class StudentAttendanceController extends Controller
             ->orderBy('start_at')
             ->get();
 
-        return view('attendance.checkin', compact('schedules', 'student'));
+        $setting = LocationSetting::current();
+        return view('attendance.checkin', compact('schedules', 'student', 'setting'));
     }
 
     public function show(Request $request, Schedule $schedule)
@@ -49,7 +77,8 @@ class StudentAttendanceController extends Controller
             ->orderByDesc('marked_at')
             ->first();
 
-        return view('attendance.checkin_show', compact('schedule', 'student', 'existing'));
+        $setting = LocationSetting::current();
+        return view('attendance.checkin_show', compact('schedule', 'student', 'existing', 'setting'));
     }
 
     public function store(Request $request)
@@ -78,14 +107,17 @@ class StudentAttendanceController extends Controller
             return back()->withErrors(['schedule_id' => 'Attendance can only be recorded during class time.']);
         }
 
-        // Geofence: MUBS ADB Building
-        $campusLat = 0.332931;
-        $campusLng = 32.621927;
+        // Geofence: Admin-configured campus location
+        $setting = LocationSetting::current();
+        $campusLat = $setting?->latitude ?? 0.332931;
+        $campusLng = $setting?->longitude ?? 32.621927;
         $lat = (float)$data['lat'];
         $lng = (float)$data['lng'];
         $distanceMeters = $this->haversineDistanceMeters($campusLat, $campusLng, $lat, $lng);
-        if ($distanceMeters > 150) {
-            return back()->withErrors(['location' => 'Attendance can only be recorded from within MUBS premises.']);
+        $radiusMeters = $setting?->radius_meters ?? 150;
+        if ($distanceMeters > $radiusMeters) {
+            $rounded = (int) round($distanceMeters);
+            return back()->withErrors(['location' => 'Attendance can only be recorded from within MUBS premises. Outside MUBS premises (' . $rounded . 'm).']);
         }
 
         // Derive status: late if 30+ minutes after start, otherwise present

@@ -42,6 +42,7 @@
           <button type="button" id="btnLocate" class="btn btn-outline-secondary">Use current location</button>
         </div>
         <small id="locStatus" class="text-muted d-block mt-2">Location not set</small>
+        <small class="text-muted d-block">Distance from MUBS: <span id="locDist">—</span></small>
       </div>
       <div class="col-12 d-flex justify-content-end">
         <button type="submit" class="btn btn-primary">Mark Attendance</button>
@@ -52,9 +53,10 @@
 
 <script>
   (function(){
-    // Geofence constants (MUBS ADB Building)
-    const campus = { lat: 0.332931, lng: 32.621927 };
-    const radiusMeters = 150;
+    // Geofence constants (Admin-configured)
+    const campus = { lat: {{ $setting->latitude }}, lng: {{ $setting->longitude }} };
+    const radiusMeters = {{ $setting->radius_meters }};
+    console.log('[Check-In] Geofence config', { campus, radiusMeters });
 
     function haversine(lat1, lon1, lat2, lon2){
       const R = 6371000;
@@ -70,6 +72,7 @@
     const lat = document.getElementById('lat');
     const lng = document.getElementById('lng');
     const status = document.getElementById('locStatus');
+    const distEl = document.getElementById('locDist');
     const form = document.getElementById('checkinForm');
     if(btn){
       btn.addEventListener('click', function(){
@@ -84,18 +87,28 @@
           lat.value = pos.coords.latitude.toFixed(6);
           lng.value = pos.coords.longitude.toFixed(6);
           const dist = haversine(campus.lat, campus.lng, pos.coords.latitude, pos.coords.longitude);
+          distEl.textContent = Math.round(dist) + 'm';
+          // Color distance using theme colors
+          distEl.classList.remove('text-success', 'text-danger');
+          distEl.classList.add(dist > radiusMeters ? 'text-danger' : 'text-success');
           status.textContent = 'Location acquired.';
           status.classList.remove('text-danger');
           status.classList.add('text-success');
+          console.log('[Check-In] Current position', { lat: pos.coords.latitude, lng: pos.coords.longitude, dist });
           if(dist > radiusMeters){
             status.textContent = 'Outside MUBS premises (' + Math.round(dist) + 'm).';
             status.classList.remove('text-success');
             status.classList.add('text-danger');
           }
+          // Show quick hint of allowed center and radius
+          const hint = `Allowed center: ${campus.lat.toFixed(6)}, ${campus.lng.toFixed(6)} | Radius: ${radiusMeters}m`;
+          status.title = hint;
         }, function(err){
           status.textContent = 'Unable to retrieve location: ' + err.message;
           status.classList.remove('text-muted');
           status.classList.add('text-danger');
+          distEl.textContent = '—';
+          distEl.classList.remove('text-success', 'text-danger');
         }, { enableHighAccuracy: true, timeout: 8000 });
       });
     }
@@ -105,9 +118,13 @@
         const lt = parseFloat(lat.value), ln = parseFloat(lng.value);
         if(!isFinite(lt) || !isFinite(ln)) return; // let backend validate
         const dist = haversine(campus.lat, campus.lng, lt, ln);
+        distEl.textContent = Math.round(dist) + 'm';
+        distEl.classList.remove('text-success', 'text-danger');
+        distEl.classList.add(dist > radiusMeters ? 'text-danger' : 'text-success');
+        console.log('[Check-In] Submit distance check', { lt, ln, dist, radiusMeters, campus });
         if(dist > radiusMeters){
           e.preventDefault();
-          status.textContent = 'Attendance can only be recorded from within MUBS premises.';
+          status.textContent = 'Attendance can only be recorded from within MUBS premises. Outside MUBS premises (' + Math.round(dist) + 'm).';
           status.classList.remove('text-success');
           status.classList.add('text-danger');
         }

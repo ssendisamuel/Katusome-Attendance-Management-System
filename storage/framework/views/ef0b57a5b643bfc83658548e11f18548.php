@@ -99,10 +99,29 @@
       ?>
       <?php if($role === 'student'): ?>
         <li class="menu-item">
-          <a href="<?php echo e(route('attendance.checkin.create')); ?>" class="menu-link">
-            <i class="menu-icon icon-base ri ri-checkbox-circle-line"></i>
-            <div><?php echo e(__('Check In')); ?></div>
+          <a href="<?php echo e(route('student.dashboard')); ?>" class="menu-link">
+            <i class="menu-icon icon-base ri ri-dashboard-line"></i>
+            <div><?php echo e(__('Student Dashboard')); ?></div>
           </a>
+        </li>
+        <li class="menu-item">
+          <a href="<?php echo e(route('student.attendance.today')); ?>" class="menu-link">
+            <i class="menu-icon icon-base ri ri-checkbox-circle-line"></i>
+            <div><?php echo e(__('Attendance')); ?></div>
+          </a>
+        </li>
+        <li class="menu-item">
+          <a href="<?php echo e(route('password.change.edit')); ?>" class="menu-link">
+            <i class="menu-icon icon-base ri ri-key-2-line"></i>
+            <div><?php echo e(__('Change Password')); ?></div>
+          </a>
+        </li>
+        <li class="menu-item">
+          <a href="#" class="menu-link" onclick="event.preventDefault(); document.getElementById('logout-form-vertical').submit();">
+            <i class="menu-icon icon-base ri ri-logout-box-r-line"></i>
+            <div><?php echo e(__('Logout')); ?></div>
+          </a>
+          <form id="logout-form-vertical" action="<?php echo e(route('logout')); ?>" method="POST" class="d-none"><?php echo csrf_field(); ?></form>
         </li>
       <?php elseif($role === 'lecturer'): ?>
         <li class="menu-item">

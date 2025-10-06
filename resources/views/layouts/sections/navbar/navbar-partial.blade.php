@@ -1,6 +1,28 @@
 @php
-  use Illuminate\Support\Facades\Auth;
-  use Illuminate\Support\Facades\Route;
+  // Avoid relying on the Auth facade alias in Blade; use the request-bound helper
+  $defaultAvatar = asset('assets/img/avatars/1.png');
+  $user = auth()->user();
+  $userHasImage = false;
+  $avatarUrl = $defaultAvatar;
+  $initials = 'U';
+  if ($user) {
+    $userHasImage = !empty($user->avatar_url ?? '') || !empty($user->profile_photo_url ?? '');
+    $avatarUrl = !empty($user->avatar_url ?? '')
+      ? $user->avatar_url
+      : (!empty($user->profile_photo_url ?? '') ? $user->profile_photo_url : $defaultAvatar);
+    $name = trim($user->name ?? 'User');
+    $initials = collect(explode(' ', $name))
+      ->map(fn($p) => mb_substr($p, 0, 1))
+      ->implode('');
+    $initials = mb_strtoupper(mb_substr($initials, 0, 2));
+  }
+  // Role label for display in dropdown
+  $roleLabel = 'User';
+  if ($user && !empty($user->role)) {
+    if ($user->role === 'student') { $roleLabel = 'Student'; }
+    elseif ($user->role === 'lecturer') { $roleLabel = 'Lecturer'; }
+    elseif ($user->role === 'admin') { $roleLabel = 'Admin'; }
+  }
 @endphp
 
 <!--  Brand demo (display only for navbar-full and hide on below xl) -->
@@ -70,40 +92,30 @@
     <li class="nav-item navbar-dropdown dropdown-user dropdown">
       <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
         <div class="avatar avatar-online">
-          @php
-            $defaultAvatar = asset('assets/img/avatars/1.png');
-            $user = Auth::user();
-            $avatarUrl = $defaultAvatar;
-            if ($user && !empty($user->profile_photo_url ?? '')) {
-              $avatarUrl = $user->profile_photo_url;
-            }
-          @endphp
-          <img src="{{ $avatarUrl }}" alt="User avatar" class="rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+          @if($user && $userHasImage)
+            <img src="{{ $avatarUrl }}" alt="User avatar" class="rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+          @else
+            <span class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
+          @endif
         </div>
       </a>
       <ul class="dropdown-menu dropdown-menu-end mt-3 py-2">
         <li>
-          <a class="dropdown-item"
-            href="{{ Route::has('profile.show') ? route('profile.show') : 'javascript:void(0);' }}">
+          <a class="dropdown-item" href="{{ route('profile.show') }}">
             <div class="d-flex align-items-center">
               <div class="flex-shrink-0 me-2">
                 <div class="avatar avatar-online">
-                  <img src="{{ $avatarUrl }}" alt="User avatar" class="w-px-40 h-auto rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+                  @if($user && $userHasImage)
+                    <img src="{{ $avatarUrl }}" alt="User avatar" class="w-px-40 h-auto rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+                  @else
+                    <span class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
+                  @endif
                 </div>
               </div>
               <div class="flex-grow-1">
-                <h6 class="mb-0 small">
-                  @if (Auth::check())
-                    {{ Auth::user()->name }}
-                  @else
-                    John Doe
-                  @endif
-                </h6>
+                <h6 class="mb-0 small">{{ $user ? $user->name : 'John Doe' }}</h6>
                 @php
-                  $roleLabel = 'Guest';
-                  if (Auth::check()) {
-                    $roleLabel = ucfirst(Auth::user()->role ?? 'User');
-                  }
+                  $roleLabel = $user ? ucfirst($user->role ?? 'User') : 'Guest';
                 @endphp
                 <small class="text-body-secondary">{{ $roleLabel }}</small>
               </div>
@@ -114,15 +126,14 @@
           <div class="dropdown-divider"></div>
         </li>
         <li>
-          <a class="dropdown-item"
-            href="{{ Route::has('profile.show') ? route('profile.show') : 'javascript:void(0);' }}">
+          <a class="dropdown-item" href="{{ route('profile.show') }}">
             <i class="icon-base ri ri-user-3-line icon-22px me-2"></i> <span class="align-middle">My
               Profile</span> </a>
         </li>
         @php
           $jetstreamEnabled = class_exists('Laravel\\Jetstream\\Jetstream');
         @endphp
-        @if (Auth::check() && $jetstreamEnabled && Laravel\Jetstream\Jetstream::hasApiFeatures())
+        @if ($user && $jetstreamEnabled && Laravel\Jetstream\Jetstream::hasApiFeatures())
           <li>
             <a class="dropdown-item" href="{{ route('api-tokens.index') }}"> <i
                 class="icon-base ri ri-settings-4-line icon-22px me-3"></i><span class="align-middle">Settings</span>
@@ -130,15 +141,47 @@
           </li>
         @endif
         <li>
-          <a class="dropdown-item" href="javascript:void(0);">
-            <span class="d-flex align-items-center align-middle">
-              <i class="flex-shrink-0 icon-base ri ri-file-text-line icon-22px me-3"></i>
-              <span class="flex-grow-1 align-middle">Billing Plan</span>
-              <span class="flex-shrink-0 badge badge-center rounded-pill bg-danger">4</span>
-            </span>
-          </a>
+          @php
+            $userRole = $user ? ($user->role ?? 'user') : null;
+          @endphp
+          @if ($user)
+            @if ($userRole === 'student')
+              <a class="dropdown-item" href="{{ route('student.attendance.today') }}">
+                <i class="icon-base ri ri-checkbox-circle-line icon-22px me-3"></i>
+                <span class="align-middle">Attendance Today</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ route('student.dashboard') }}">
+                <i class="icon-base ri ri-dashboard-line icon-22px me-3"></i>
+                <span class="align-middle">Student Dashboard</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ route('password.change.edit') }}">
+                <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
+                <span class="align-middle">Change Password</span>
+              </a>
+            @elseif ($userRole === 'lecturer')
+              <a class="dropdown-item" href="{{ route('lecturer.attendance.index') }}">
+                <i class="icon-base ri ri-clipboard-line icon-22px me-3"></i>
+                <span class="align-middle">Attendance</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ route('password.change.edit') }}">
+                <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
+                <span class="align-middle">Change Password</span>
+              </a>
+            @elseif ($userRole === 'admin')
+              <a class="dropdown-item" href="{{ url('/admin/dashboard') }}">
+                <i class="icon-base ri ri-bar-chart-line icon-22px me-3"></i>
+                <span class="align-middle">Admin Dashboard</span>
+              </a>
+            @endif
+          @endif
         </li>
-        @if (Auth::user() && $jetstreamEnabled && Laravel\Jetstream\Jetstream::hasTeamFeatures())
+        @if ($user && $jetstreamEnabled && Laravel\Jetstream\Jetstream::hasTeamFeatures())
           <li>
             <div class="dropdown-divider"></div>
           </li>
@@ -150,7 +193,7 @@
           </li>
           <li>
             <a class="dropdown-item"
-              href="{{ Auth::user() ? route('teams.show', Auth::user()->currentTeam->id) : 'javascript:void(0)' }}">
+              href="{{ $user && ($user->currentTeam ?? null) ? route('teams.show', $user->currentTeam->id) : 'javascript:void(0)' }}">
               <i class="icon-base ri ri-settings-3-line icon-md me-3"></i><span>Team Settings</span>
             </a>
           </li>
@@ -163,7 +206,7 @@
               </li>
             @endcan
           @endif
-          @if (Auth::user()->allTeams()->count() > 1)
+          @if ($user && $user->allTeams()->count() > 1)
             <li>
               <div class="dropdown-divider my-1"></div>
             </li>
@@ -174,8 +217,8 @@
               <div class="dropdown-divider my-1"></div>
             </li>
           @endif
-          @if (Auth::user())
-            @foreach (Auth::user()->allTeams() as $team)
+          @if ($user)
+            @foreach ($user->allTeams() as $team)
               {{-- Below commented code read by artisan command while installing jetstream. !! Do not remove if you want to use jetstream. --}}
 
               {{-- <x-switchable-team :team="$team" /> --}}
@@ -185,7 +228,7 @@
         <li>
           <div class="dropdown-divider my-1"></div>
         </li>
-        @if (Auth::check())
+        @auth
           <li>
             <div class="d-grid px-4 pt-2 pb-1">
               <a class="btn btn-danger d-flex" href="{{ route('logout') }}"
@@ -198,7 +241,8 @@
           <form method="POST" id="logout-form" action="{{ route('logout') }}">
             @csrf
           </form>
-        @else
+        @endauth
+        @guest
           <li>
             <div class="d-grid px-4 pt-2 pb-1">
               <a class="btn btn-danger d-flex" href="{{ route('login') }}">
@@ -207,7 +251,7 @@
               </a>
             </div>
           </li>
-        @endif
+        @endguest
       </ul>
     </li>
     <!--/ User -->

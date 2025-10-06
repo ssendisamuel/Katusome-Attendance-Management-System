@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Vite;
+use App\Models\User;
+use App\Observers\UserObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,5 +30,8 @@ class AppServiceProvider extends ServiceProvider
             }
             return [];
         });
+
+        // Observe user updates to synchronize legacy duplicated columns
+        User::observe(UserObserver::class);
     }
 }

@@ -8,6 +8,8 @@
 
 <?php echo app('Illuminate\Foundation\Vite')(['resources/assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js', 'resources/assets/vendor/libs/hammer/hammer.js', 'resources/assets/vendor/js/menu.js']); ?>
 
+<?php echo app('Illuminate\Foundation\Vite')(['resources/assets/vendor/libs/sweetalert2/sweetalert2.js']); ?>
+
 <?php echo $__env->yieldContent('vendor-script'); ?>
 <!-- END: Page Vendor JS-->
 

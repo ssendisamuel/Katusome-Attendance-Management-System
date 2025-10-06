@@ -19,6 +19,7 @@
 
 <!-- Vendor Styles -->
 <?php echo app('Illuminate\Foundation\Vite')(['resources/assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.scss', 'resources/assets/vendor/libs/typeahead-js/typeahead.scss']); ?>
+<?php echo app('Illuminate\Foundation\Vite')(['resources/assets/vendor/libs/sweetalert2/sweetalert2.scss']); ?>
 <?php echo $__env->yieldContent('vendor-style'); ?>
 
 <!-- Page Styles -->

@@ -41,6 +41,30 @@
       });
     }
 
+    function bindDeleteButtons(){
+      tableWrap.querySelectorAll('.js-delete-schedule').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          const form = this.closest('form');
+          const name = this.dataset.name || 'this schedule';
+          if (window.Swal && window.Swal.fire) {
+            window.Swal.fire({
+              title: 'Delete ' + name + '?',
+              text: 'This action cannot be undone.',
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonText: 'Yes, delete',
+              cancelButtonText: 'Cancel'
+            }).then(function (result) {
+              if (result.isConfirmed) form.submit();
+            });
+          } else {
+            if (confirm('Delete ' + name + '?')) form.submit();
+          }
+        });
+      });
+    }
+
     function updateTable(url){
       const target = url || urlFromForm();
       fetch(target, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
@@ -48,6 +72,7 @@
         .then(html => {
           tableWrap.innerHTML = html;
           attachPagination();
+          bindDeleteButtons();
           history.replaceState(null, '', target);
         })
         .catch(console.error);
@@ -68,6 +93,7 @@
     }
 
     attachPagination();
+    bindDeleteButtons();
 
     function bindFilterEvents(){
       const searchInput = document.getElementById('scheduleSearch');

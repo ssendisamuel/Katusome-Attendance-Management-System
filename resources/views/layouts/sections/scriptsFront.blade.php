@@ -9,6 +9,7 @@
 <!-- END: Page Vendor JS-->
 
 <!-- BEGIN: Theme JS-->
+@vite(['resources/assets/vendor/libs/sweetalert2/sweetalert2.js'])
 @vite(['resources/assets/js/front-main.js'])
 <!-- END: Theme JS-->
 
@@ -19,3 +20,7 @@
 <!-- BEGIN: Page JS-->
 @yield('page-script')
 <!-- END: Page JS-->
+
+<!-- app JS -->
+@vite(['resources/js/app.js'])
+<!-- END: app JS-->

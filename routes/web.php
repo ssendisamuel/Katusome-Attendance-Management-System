@@ -19,9 +19,12 @@ use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\LecturerAttendanceController;
+use App\Http\Controllers\StudentDashboardController;
 
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\ChangePasswordController;
+use App\Http\Controllers\ProfileController;
 
 // Main Page Route -> Redirect to dashboards
 Route::get('/', function () {
@@ -147,26 +150,12 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
 // Student check-in routes
 Route::middleware(['auth', 'can:student'])->group(function () {
     // Student dashboard
-    Route::get('/dashboard', function () {
-        $user = auth()->user();
-        $student = optional($user)->student;
-        if (!$student) {
-            return redirect()->route('login')->withErrors(['email' => 'You must be a student to access the dashboard.']);
-        }
+    Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
+    // Student dashboard courses JSON for DataTable
+    Route::get('/dashboard/courses', [StudentDashboardController::class, 'coursesJson'])->name('student.dashboard.courses');
 
-        $today = \Carbon\Carbon::today();
-        $schedules = \App\Models\Schedule::with(['course', 'lecturer'])
-            ->where('group_id', $student->group_id)
-            ->whereDate('start_at', $today)
-            ->orderBy('start_at')
-            ->get();
-        $attendanceBySchedule = \App\Models\Attendance::whereIn('schedule_id', $schedules->pluck('id'))
-            ->where('student_id', $student->id)
-            ->get()
-            ->keyBy('schedule_id');
-
-        return view('content.dashboards.student', compact('student', 'schedules', 'attendanceBySchedule'));
-    })->name('student.dashboard');
+    // Student attendance (today-only dedicated page)
+    Route::get('/attendance', [StudentAttendanceController::class, 'today'])->name('student.attendance.today');
 
     // Existing generic check-in selection
     Route::get('/checkin', [StudentAttendanceController::class, 'create'])->name('attendance.checkin.create');
@@ -181,6 +170,16 @@ Route::middleware(['auth', 'can:lecturer'])->group(function () {
     Route::get('/lecturer/attendance', [LecturerAttendanceController::class, 'index'])->name('lecturer.attendance.index');
     Route::get('/lecturer/attendance/{schedule}/mark', [LecturerAttendanceController::class, 'edit'])->name('lecturer.attendance.edit');
     Route::post('/lecturer/attendance/{schedule}/mark', [LecturerAttendanceController::class, 'update'])->name('lecturer.attendance.update');
+});
+
+// Change password (for authenticated users)
+Route::middleware(['auth'])->group(function () {
+    Route::get('/account/change-password', [ChangePasswordController::class, 'edit'])->name('password.change.edit');
+    Route::post('/account/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
+
+    // Profile routes
+    Route::get('/account/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::post('/account/profile', [ProfileController::class, 'update'])->name('profile.update');
 });
 
 // Password reset routes

@@ -4,6 +4,22 @@
 
 'use strict';
 
+// Global SweetAlert2 Toast mixin (non-blocking success/info notifications)
+// Only initialize if SweetAlert2 is available and Toast is not already defined
+try {
+  if (window.Swal && typeof window.Swal.mixin === 'function' && !window.Toast) {
+    window.Toast = window.Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2000,
+      timerProgressBar: true
+    });
+  }
+} catch (e) {
+  // no-op: SweetAlert2 may not be loaded on all pages
+}
+
 window.isRtl = window.Helpers.isRtl();
 window.isDarkStyle = window.Helpers.isDarkStyle();
 let menu,

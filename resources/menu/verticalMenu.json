@@ -55,5 +55,13 @@
       "icon": "menu-icon icon-base ri ri-check-double-line",
       "slug": "admin.attendance.index"
     }
+    ,
+    { "menuHeader": "Settings" },
+    {
+      "url": "/admin/settings/location",
+      "name": "Location",
+      "icon": "menu-icon icon-base ri ri-map-pin-line",
+      "slug": "admin.settings.location.edit"
+    }
   ]
 }

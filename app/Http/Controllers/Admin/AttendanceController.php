@@ -27,10 +27,11 @@ class AttendanceController extends Controller
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
             $query->where(function ($q) use ($term) {
-                $q->whereHas('student', fn($qq) => $qq->where('name', 'like', $term))
+                // Search by canonical identity via related users
+                $q->whereHas('student.user', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.course', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.group', fn($qq) => $qq->where('name', 'like', $term))
-                  ->orWhereHas('schedule.lecturer', fn($qq) => $qq->where('name', 'like', $term));
+                  ->orWhereHas('schedule.lecturer.user', fn($qq) => $qq->where('name', 'like', $term));
             });
         }
 

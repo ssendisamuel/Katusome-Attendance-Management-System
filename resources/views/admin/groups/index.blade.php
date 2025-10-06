@@ -32,7 +32,7 @@
               <form action="{{ route('admin.groups.destroy', $group) }}" method="POST" class="d-inline">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this group?')">Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger js-delete-group" data-name="{{ $group->name }}">Delete</button>
               </form>
             </td>
           </tr>
@@ -42,4 +42,32 @@
   </div>
   <div class="card-footer">{{ $groups->links() }}</div>
 </div>
+@endsection
+
+@section('page-script')
+<script>
+  (function () {
+    document.querySelectorAll('.js-delete-group').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        const name = this.dataset.name || 'this group';
+        if (window.Swal && window.Swal.fire) {
+          window.Swal.fire({
+            title: 'Delete ' + name + '?',
+            text: 'This action cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete',
+            cancelButtonText: 'Cancel'
+          }).then(function (result) {
+            if (result.isConfirmed) form.submit();
+          });
+        } else {
+          if (confirm('Delete ' + name + '?')) form.submit();
+        }
+      });
+    });
+  })();
+</script>
 @endsection

@@ -32,7 +32,7 @@
               <form action="{{ route('admin.lecturers.destroy', $lecturer) }}" method="POST" class="d-inline">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this lecturer?')">Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger js-delete-lecturer" data-name="{{ $lecturer->name }}">Delete</button>
               </form>
             </td>
           </tr>
@@ -42,4 +42,32 @@
   </div>
   <div class="card-footer">{{ $lecturers->links() }}</div>
 </div>
+@endsection
+
+@section('page-script')
+<script>
+  (function () {
+    document.querySelectorAll('.js-delete-lecturer').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        const name = this.dataset.name || 'this lecturer';
+        if (window.Swal && window.Swal.fire) {
+          window.Swal.fire({
+            title: 'Delete ' + name + '?',
+            text: 'This action cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete',
+            cancelButtonText: 'Cancel'
+          }).then(function (result) {
+            if (result.isConfirmed) form.submit();
+          });
+        } else {
+          if (confirm('Delete ' + name + '?')) form.submit();
+        }
+      });
+    });
+  })();
+</script>
 @endsection

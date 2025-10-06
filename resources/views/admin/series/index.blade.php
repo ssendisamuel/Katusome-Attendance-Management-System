@@ -43,7 +43,7 @@
               <form action="{{ route('admin.series.destroy', $s) }}" method="POST" class="d-inline">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-outline-danger px-2" onclick="return confirm('Delete this series?')">Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger px-2 js-delete-series" data-name="{{ $s->name }}">Delete</button>
               </form>
             </td>
           </tr>
@@ -159,4 +159,32 @@
   <div class="card-footer">{{ $audits->links() }}</div>
 </div>
 @endisset
+@endsection
+
+@section('page-script')
+<script>
+  (function () {
+    document.querySelectorAll('.js-delete-series').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        const name = this.dataset.name || 'this series';
+        if (window.Swal && window.Swal.fire) {
+          window.Swal.fire({
+            title: 'Delete ' + name + '?',
+            text: 'This action cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete',
+            cancelButtonText: 'Cancel'
+          }).then(function (result) {
+            if (result.isConfirmed) form.submit();
+          });
+        } else {
+          if (confirm('Delete ' + name + '?')) form.submit();
+        }
+      });
+    });
+  })();
+</script>
 @endsection

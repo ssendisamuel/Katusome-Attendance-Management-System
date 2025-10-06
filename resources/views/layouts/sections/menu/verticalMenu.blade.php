@@ -99,10 +99,29 @@
       @endphp
       @if($role === 'student')
         <li class="menu-item">
-          <a href="{{ route('attendance.checkin.create') }}" class="menu-link">
-            <i class="menu-icon icon-base ri ri-checkbox-circle-line"></i>
-            <div>{{ __('Check In') }}</div>
+          <a href="{{ route('student.dashboard') }}" class="menu-link">
+            <i class="menu-icon icon-base ri ri-dashboard-line"></i>
+            <div>{{ __('Student Dashboard') }}</div>
           </a>
+        </li>
+        <li class="menu-item">
+          <a href="{{ route('student.attendance.today') }}" class="menu-link">
+            <i class="menu-icon icon-base ri ri-checkbox-circle-line"></i>
+            <div>{{ __('Attendance') }}</div>
+          </a>
+        </li>
+        <li class="menu-item">
+          <a href="{{ route('password.change.edit') }}" class="menu-link">
+            <i class="menu-icon icon-base ri ri-key-2-line"></i>
+            <div>{{ __('Change Password') }}</div>
+          </a>
+        </li>
+        <li class="menu-item">
+          <a href="#" class="menu-link" onclick="event.preventDefault(); document.getElementById('logout-form-vertical').submit();">
+            <i class="menu-icon icon-base ri ri-logout-box-r-line"></i>
+            <div>{{ __('Logout') }}</div>
+          </a>
+          <form id="logout-form-vertical" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
         </li>
       @elseif($role === 'lecturer')
         <li class="menu-item">

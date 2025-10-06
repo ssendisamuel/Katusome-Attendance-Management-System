@@ -13,6 +13,7 @@
 <!-- Vendor Styles -->
 @yield('vendor-style')
 @vite(['resources/assets/vendor/libs/node-waves/node-waves.scss'])
+@vite(['resources/assets/vendor/libs/sweetalert2/sweetalert2.scss'])
 
 <!-- Core CSS -->
 @vite(['resources/assets/vendor/scss/core.scss', 'resources/assets/css/demo.css', 'resources/assets/vendor/scss/pages/front-page.scss'])

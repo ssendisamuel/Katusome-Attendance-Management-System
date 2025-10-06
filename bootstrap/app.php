@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\LocaleMiddleware;
 use App\Providers\AuthServiceProvider;
+use App\Console\Commands\SyncIdentityDuplicates;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__ . '/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([
+        SyncIdentityDuplicates::class,
+    ])
     ->withProviders([
         AuthServiceProvider::class,
     ])

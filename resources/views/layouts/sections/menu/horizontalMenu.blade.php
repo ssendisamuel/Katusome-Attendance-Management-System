@@ -72,10 +72,23 @@
             </a>
           </li>
           <li class="menu-item">
-            <a href="{{ route('attendance.checkin.create') }}" class="menu-link">
+            <a href="{{ route('student.attendance.today') }}" class="menu-link">
               <i class="menu-icon icon-base ri ri-checkbox-circle-line"></i>
-              <div>{{ __('Check In') }}</div>
+              <div>{{ __('Attendance') }}</div>
             </a>
+          </li>
+          <li class="menu-item">
+            <a href="{{ route('password.change.edit') }}" class="menu-link">
+              <i class="menu-icon icon-base ri ri-key-2-line"></i>
+              <div>{{ __('Change Password') }}</div>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="#" class="menu-link" onclick="event.preventDefault(); document.getElementById('logout-form-horizontal').submit();">
+              <i class="menu-icon icon-base ri ri-logout-box-r-line"></i>
+              <div>{{ __('Logout') }}</div>
+            </a>
+            <form id="logout-form-horizontal" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
           </li>
         @elseif($userRole === 'lecturer')
           <li class="menu-item">

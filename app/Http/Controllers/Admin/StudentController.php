@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Program;
 use App\Models\Group;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class StudentController extends Controller
 {
@@ -27,7 +30,8 @@ class StudentController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:students,email'],
+            // Validate against canonical users table
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:50'],
             'gender' => ['nullable', 'in:male,female,other'],
             'student_no' => ['required', 'string', 'max:50', 'unique:students,student_no'],
@@ -37,7 +41,25 @@ class StudentController extends Controller
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
         ]);
 
-        Student::create($data);
+        // Create canonical user record for student
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make(Str::random(12)),
+            'role' => 'student',
+        ]);
+
+        // Create student linked to canonical user
+        Student::create([
+            'user_id' => $user->id,
+            'phone' => $data['phone'] ?? null,
+            'gender' => $data['gender'] ?? null,
+            'student_no' => $data['student_no'],
+            'reg_no' => $data['reg_no'] ?? null,
+            'program_id' => $data['program_id'],
+            'group_id' => $data['group_id'],
+            'year_of_study' => $data['year_of_study'] ?? 1,
+        ]);
         return redirect()->route('admin.students.index')->with('success', 'Student created');
     }
 
@@ -52,7 +74,8 @@ class StudentController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:students,email,'.$student->id],
+            // Validate against canonical users table
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($student->user)->id],
             'phone' => ['nullable', 'string', 'max:50'],
             'gender' => ['nullable', 'in:male,female,other'],
             'student_no' => ['required', 'string', 'max:50', 'unique:students,student_no,'.$student->id],
@@ -61,8 +84,31 @@ class StudentController extends Controller
             'group_id' => ['required', 'exists:groups,id'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
         ]);
+        // Ensure canonical user exists and is updated
+        if (!$student->user) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make(Str::random(12)),
+                'role' => 'student',
+            ]);
+            $student->user()->associate($user);
+        } else {
+            $student->user->name = $data['name'];
+            $student->user->email = $data['email'];
+            $student->user->save();
+        }
 
-        $student->update($data);
+        // Update non-identity fields on student
+        $student->fill([
+            'phone' => $data['phone'] ?? null,
+            'gender' => $data['gender'] ?? null,
+            'student_no' => $data['student_no'],
+            'reg_no' => $data['reg_no'] ?? null,
+            'program_id' => $data['program_id'],
+            'group_id' => $data['group_id'],
+            'year_of_study' => $data['year_of_study'] ?? $student->year_of_study,
+        ])->save();
         return redirect()->route('admin.students.index')->with('success', 'Student updated');
     }
 
@@ -137,9 +183,11 @@ class StudentController extends Controller
                 $errors[] = "Invalid gender '{$gender}' for {$studentNo}";
                 continue;
             }
-            // Check email uniqueness conflict
-            $emailConflict = Student::where('email', $email)
-                ->where('student_no', '!=', $studentNo)
+            // Check email uniqueness conflict against canonical users
+            $emailConflict = User::where('email', $email)
+                ->whereDoesntHave('student', function ($q) use ($studentNo) {
+                    $q->where('student_no', $studentNo);
+                })
                 ->exists();
             if ($emailConflict) {
                 $skipped++;
@@ -147,9 +195,7 @@ class StudentController extends Controller
                 continue;
             }
 
-            $attributes = [
-                'name' => $name,
-                'email' => $email,
+            $studentAttrs = [
                 'phone' => $phone ?: null,
                 'gender' => $gender ?: null,
                 'reg_no' => $regNo ?: null,
@@ -160,10 +206,41 @@ class StudentController extends Controller
 
             $existing = Student::where('student_no', $studentNo)->first();
             if ($existing) {
-                $existing->update($attributes);
+                // Ensure a canonical user exists and is updated
+                if (!$existing->user) {
+                    // Try to find user by email before creating
+                    $user = User::where('email', $email)->first();
+                    if (!$user) {
+                        $user = User::create([
+                            'name' => $name,
+                            'email' => $email,
+                            'password' => Hash::make(Str::random(12)),
+                            'role' => 'student',
+                        ]);
+                    }
+                    $existing->user()->associate($user);
+                } else {
+                    $existing->user->name = $name;
+                    $existing->user->email = $email;
+                    $existing->user->save();
+                }
+                $existing->update($studentAttrs);
                 $updated++;
             } else {
-                Student::create(array_merge($attributes, ['student_no' => $studentNo]));
+                // Create canonical user then student
+                $user = User::where('email', $email)->first();
+                if (!$user) {
+                    $user = User::create([
+                        'name' => $name,
+                        'email' => $email,
+                        'password' => Hash::make(Str::random(12)),
+                        'role' => 'student',
+                    ]);
+                }
+                Student::create(array_merge($studentAttrs, [
+                    'user_id' => $user->id,
+                    'student_no' => $studentNo,
+                ]));
                 $created++;
             }
         }

@@ -33,7 +33,8 @@ class ScheduleController extends Controller
             $query->where(function ($q) use ($term) {
                 $q->whereHas('course', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('group', fn($qq) => $qq->where('name', 'like', $term))
-                  ->orWhereHas('lecturer', fn($qq) => $qq->where('name', 'like', $term))
+                  // Search lecturer by canonical identity via related user
+                  ->orWhereHas('lecturer.user', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('series', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhere('location', 'like', $term);
             });

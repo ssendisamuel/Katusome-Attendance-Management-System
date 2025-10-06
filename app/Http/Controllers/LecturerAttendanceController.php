@@ -34,7 +34,15 @@ class LecturerAttendanceController extends Controller
             abort(403);
         }
 
-        $students = $schedule->group->students()->orderBy('name')->get();
+        // Order students by canonical identity via related user
+        $students = $schedule->group->students()
+            ->whereHas('user')
+            ->with('user')
+            ->orderBy(
+                \DB::raw('(select name from users where users.id = students.user_id)'),
+                'asc'
+            )
+            ->get();
         $existing = Attendance::where('schedule_id', $schedule->id)->get()->keyBy('student_id');
         return view('lecturer.attendance.edit', compact('schedule', 'students', 'existing'));
     }
