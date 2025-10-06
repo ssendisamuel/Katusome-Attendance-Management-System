@@ -1,0 +1,59 @@
+{
+  "menu": [
+    { "menuHeader": "Admin" },
+    {
+      "url": "/admin/dashboard",
+      "name": "Dashboard",
+      "icon": "menu-icon icon-base ri ri-bar-chart-line",
+      "slug": "admin.dashboard"
+    },
+    {
+      "url": "/admin/programs",
+      "name": "Programs",
+      "icon": "menu-icon icon-base ri ri-book-open-line",
+      "slug": "admin.programs.index"
+    },
+    {
+      "url": "/admin/groups",
+      "name": "Groups",
+      "icon": "menu-icon icon-base ri ri-group-line",
+      "slug": "admin.groups.index"
+    },
+    {
+      "url": "/admin/courses",
+      "name": "Courses",
+      "icon": "menu-icon icon-base ri ri-book-2-line",
+      "slug": "admin.courses.index"
+    },
+    {
+      "url": "/admin/students",
+      "name": "Students",
+      "icon": "menu-icon icon-base ri ri-user-line",
+      "slug": "admin.students.index"
+    },
+    {
+      "url": "/admin/lecturers",
+      "name": "Lecturers",
+      "icon": "menu-icon icon-base ri ri-user-star-line",
+      "slug": "admin.lecturers.index"
+    },
+    {
+      "url": "/admin/series",
+      "name": "Series",
+      "icon": "menu-icon icon-base ri ri-calendar-event-line",
+      "slug": "admin.series.index"
+    },
+    {
+      "url": "/admin/schedules",
+      "name": "Schedules",
+      "icon": "menu-icon icon-base ri ri-calendar-line",
+      "slug": "admin.schedules.index"
+    },
+    {
+      "url": "/admin/attendance",
+      "name": "Attendance",
+      "icon": "menu-icon icon-base ri ri-check-double-line",
+      "slug": "admin.attendance.index"
+    }
+  ]
+}
