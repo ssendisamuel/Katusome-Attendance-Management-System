@@ -42,3 +42,7 @@ yarn-error.log
 
 # Except for 'template-customizer.js' inside 'resources/assets/vendor/js/'
 !/resources/assets/vendor/js/template-customizer.js
+
+# Ignore compiled Blade views and other generated framework files
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
