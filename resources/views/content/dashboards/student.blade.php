@@ -30,7 +30,7 @@ $configData = Helper::appClasses();
                   </div>
                   <div class="content-right">
                     <p class="mb-1 fw-medium text-primary text-nowrap">Present Today</p>
-                    <span class="text-primary mb-0 h5">—</span>
+                    <span class="text-primary mb-0 h5">{{ isset($metrics['presentToday']) ? $metrics['presentToday'] : '—' }}</span>
                   </div>
                 </div>
               </div>
@@ -45,7 +45,7 @@ $configData = Helper::appClasses();
                   </div>
                   <div class="content-right">
                     <p class="mb-1 fw-medium text-warning text-nowrap">Late</p>
-                    <span class="text-warning mb-0 h5">—</span>
+                    <span class="text-warning mb-0 h5">{{ isset($metrics['lateToday']) ? $metrics['lateToday'] : '—' }}</span>
                   </div>
                 </div>
               </div>
@@ -59,7 +59,7 @@ $configData = Helper::appClasses();
                 <p class="mb-9">Time Spent</p>
               </div>
               <div class="time-spending-chart">
-                <div id="leadsReportChart"></div>
+                <div id="leadsReportChart" data-total-hours="{{ isset($metrics['timeSpentTotalHours']) ? $metrics['timeSpentTotalHours'] : 0 }}"></div>
               </div>
             </div>
             <div>
@@ -72,7 +72,7 @@ $configData = Helper::appClasses();
   </div>
 
   <!-- Courses You Are Taking Today -->
-  <div class="col-12">
+  <div class="col-12" id="attendance-today">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">Courses You Are Taking Today</h5>
@@ -84,11 +84,9 @@ $configData = Helper::appClasses();
             <thead>
               <tr>
                 <th>Course</th>
-                <th>Lecturer</th>
                 <th>Time</th>
-                <th>Location</th>
-                <th>Status</th>
                 <th class="text-end">Actions</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -103,16 +101,7 @@ $configData = Helper::appClasses();
                   @endphp
                   <tr>
                     <td>{{ optional($schedule->course)->name }}</td>
-                    <td>{{ optional($schedule->lecturer)->name }}</td>
                     <td>{{ $schedule->start_at->format('h:i A') }} – {{ $schedule->end_at->format('h:i A') }}</td>
-                    <td>{{ $schedule->location }}</td>
-                    <td>
-                      @if($att)
-                        <span class="badge bg-success">{{ $markedText }}</span>
-                      @else
-                        <span class="badge bg-secondary">{{ $markedText }}</span>
-                      @endif
-                    </td>
                     <td class="text-end">
                       <a href="{{ route('attendance.checkin.show', $schedule) }}"
                          class="btn btn-sm btn-primary {{ $canRecord ? '' : 'disabled' }}"
@@ -123,11 +112,18 @@ $configData = Helper::appClasses();
                         <div class="small text-muted mt-1">Available during class time only</div>
                       @endif
                     </td>
+                    <td>
+                      @if($att)
+                        <span class="badge bg-success">{{ $markedText }}</span>
+                      @else
+                        <span class="badge bg-secondary">{{ $markedText }}</span>
+                      @endif
+                    </td>
                   </tr>
                 @endforeach
               @else
                 <tr>
-                  <td colspan="6" class="text-center py-4">No classes scheduled for today.</td>
+                  <td colspan="4" class="text-center py-4">No classes scheduled for today.</td>
                 </tr>
               @endif
             </tbody>
@@ -137,39 +133,140 @@ $configData = Helper::appClasses();
     </div>
   </div>
 
-  <!-- Horizontal bar chart and progress -->
+
+  <!-- Weekly Attended Classes -->
   <div class="col-12">
     <div class="card h-100">
       <div class="card-header d-flex align-items-center justify-content-between">
-        <h5 class="card-title m-0 me-2">Your Courses</h5>
+        <h5 class="card-title m-0 me-2">This Week</h5>
+        <span class="text-muted">{{ $metrics['weeklyLabel'] ?? '' }}</span>
       </div>
       <div class="card-body">
-        <div id="horizontalBarChart" class="mb-5"></div>
-        <div class="d-flex gap-4 flex-wrap">
-          <div class="chart-progress" data-color="primary" data-series="75" data-progress_variant="true"></div>
-          <div class="chart-progress" data-color="info" data-series="45" data-progress_variant="false"></div>
-          <div class="chart-progress" data-color="success" data-series="30" data-progress_variant="false"></div>
+        @php($weekly = $metrics['weeklyAttended'] ?? [])
+        @if(!empty($weekly))
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($weekly as $w)
+                  <tr>
+                    <td>{{ $w['name'] }}</td>
+                    <td>{{ $w['date'] }}</td>
+                    <td>{{ $w['time'] }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @else
+          <div class="text-muted">No attended classes recorded this week.</div>
+        @endif
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Summary -->
+  <div class="col-12">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h5 class="card-title m-0 me-2">This Month</h5>
+        <span class="text-muted">{{ \Carbon\Carbon::now()->format('F Y') }}</span>
+      </div>
+      <div class="card-body">
+        @php($summary = $metrics['monthlySummary'] ?? ['attended' => 0, 'missed' => 0, 'upcoming' => 0])
+        <div class="row g-4">
+          <div class="col-12 col-md-4">
+            <div class="card h-100 bg-success-subtle">
+              <div class="card-body d-flex align-items-center gap-4">
+                <div class="avatar avatar-lg">
+                  <div class="avatar-initial rounded bg-white">
+                    <span class="icon-base ri ri-checkbox-circle-line icon-28px text-success"></span>
+                  </div>
+                </div>
+                <div>
+                  <p class="mb-1 fw-medium text-success text-nowrap">Attended</p>
+                  <span class="text-success mb-0 h5">{{ $summary['attended'] }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="card h-100 bg-danger-subtle">
+              <div class="card-body d-flex align-items-center gap-4">
+                <div class="avatar avatar-lg">
+                  <div class="avatar-initial rounded bg-white">
+                    <span class="icon-base ri ri-close-circle-line icon-28px text-danger"></span>
+                  </div>
+                </div>
+                <div>
+                  <p class="mb-1 fw-medium text-danger text-nowrap">Missed</p>
+                  <span class="text-danger mb-0 h5">{{ $summary['missed'] }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="card h-100 bg-info-subtle">
+              <div class="card-body d-flex align-items-center gap-4">
+                <div class="avatar avatar-lg">
+                  <div class="avatar-initial rounded bg-white">
+                    <span class="icon-base ri ri-calendar-line icon-28px text-info"></span>
+                  </div>
+                </div>
+                <div>
+                  <p class="mb-1 fw-medium text-info text-nowrap">Upcoming</p>
+                  <span class="text-info mb-0 h5">{{ $summary['upcoming'] }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Courses DataTable -->
+  
+
+  <!-- Attendance Track (moved last) -->
   <div class="col-12">
-    <div class="card">
-      <div class="table-responsive">
-        <table class="datatables-academy-course table">
-          <thead>
-            <tr>
-              <th></th>
-              <th></th>
-              <th>Course</th>
-              <th>Time</th>
-              <th>Progress</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-        </table>
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h5 class="card-title m-0 me-2">Attendance Track</h5>
+      </div>
+      <div class="card-body">
+        @php($trackTable = $metrics['attendanceTrackTable'] ?? [])
+        @if(!empty($trackTable))
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Progress</th>
+                  <th>Attended/Taught</th>
+                  <th>Time Spent</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($trackTable as $t)
+                  <tr>
+                    <td>{{ $t['name'] }}</td>
+                    <td>{{ $t['progress'] }}%</td>
+                    <td>{{ $t['attended'] }} / {{ $t['taught'] }}</td>
+                    <td>{{ $t['time'] }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @else
+          <div class="text-muted">No course progress to display.</div>
+        @endif
       </div>
     </div>
   </div>

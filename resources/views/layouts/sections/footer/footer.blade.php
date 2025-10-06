@@ -15,7 +15,7 @@
           <script>
             document.write(new Date().getFullYear());
           </script>
-          , made with ❤️ by <a href="{{ config('variables.creatorUrl') ?: url('/') }}" target="_blank" class="footer-link fw-medium">{{ config('variables.creatorName', 'Ssendi Samuel') }}</a>
+          , Developed with ❤️ by <a href="{{ config('variables.creatorUrl') ?: url('/') }}" target="_blank" class="footer-link fw-medium">{{ config('variables.creatorName', 'Ssendi Samuel') }}</a>
         </span>
         @php
           $twitter = config('variables.twitterUrl');

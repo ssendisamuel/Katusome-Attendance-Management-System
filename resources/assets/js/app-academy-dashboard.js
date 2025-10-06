@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
 
   // Time Spendings Chart
   const leadsReportChartEl = document.querySelector('#leadsReportChart'),
+    totalHours = leadsReportChartEl ? parseInt(leadsReportChartEl.getAttribute('data-total-hours') || '0', 10) : 0,
     leadsReportChartConfig = {
       chart: {
         height: 140,
@@ -75,8 +76,8 @@ document.addEventListener('DOMContentLoaded', function (e) {
         type: 'donut',
         opacity: 1
       },
-      labels: ['36h', '56h', '16h', '32h', '56h', '16h'],
-      series: [23, 35, 10, 20, 35, 23],
+      labels: ['Total'],
+      series: [100],
       colors: [
         chartColors.donut2.series1,
         chartColors.donut2.series2,
@@ -131,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
                 label: 'Total',
                 color: labelColor,
                 formatter: function (w) {
-                  return '231h';
+                  return `${totalHours}h`;
                 }
               }
             }
@@ -147,6 +148,15 @@ document.addEventListener('DOMContentLoaded', function (e) {
   // datatbale bar chart
 
   const horizontalBarChartEl = document.querySelector('#horizontalBarChart'),
+    attendanceTrackData = horizontalBarChartEl
+      ? (() => {
+          try {
+            return JSON.parse(horizontalBarChartEl.getAttribute('data-track') || '[]');
+          } catch (e) {
+            return [];
+          }
+        })()
+      : [],
     horizontalBarChartConfig = {
       chart: {
         height: 300,
@@ -210,10 +220,10 @@ document.addEventListener('DOMContentLoaded', function (e) {
           enabled: false
         }
       },
-      labels: ['UI Design', 'UX Design', 'Music', 'Animation', 'React', 'SEO'],
+      labels: attendanceTrackData.map(i => i.name),
       series: [
         {
-          data: [35, 20, 14, 12, 10, 9]
+          data: attendanceTrackData.map(i => i.percent)
         }
       ],
 
@@ -237,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
         }
       },
       yaxis: {
-        max: 35,
+        max: 100,
         labels: {
           style: {
             colors: [labelColor],
@@ -347,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
     tableTitle.classList.add('card-title', 'mb-0', 'text-nowrap', 'text-md-start', 'text-center');
     tableTitle.innerHTML = 'Course you are taking';
     let dt_course = new DataTable(dt_academy_course, {
-      ajax: assetsPath + 'json/app-academy-dashboard.json',
+      ajax: baseUrl + 'dashboard/courses',
       columns: [
         // columns according to JSON
         { data: 'id' },
@@ -355,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
         { data: 'course name' },
         { data: 'time' },
         { data: 'progress' },
-        { data: 'status' }
+        { data: 'attended' }
       ],
       columnDefs: [
         {
@@ -387,37 +397,8 @@ document.addEventListener('DOMContentLoaded', function (e) {
           targets: 2,
           responsivePriority: 2,
           render: (data, type, full) => {
-            const { logo, course, user, image } = full;
-
-            const output = image
-              ? `<img src="${assetsPath}img/avatars/${image}" alt="Avatar" class="rounded-circle">`
-              : (() => {
-                  // Generate initials and random state for badge
-                  const states = ['success', 'danger', 'warning', 'info', 'dark', 'primary', 'secondary'];
-                  const state = states[Math.floor(Math.random() * states.length)];
-                  const initials = (user.match(/\b\w/g) || []).reduce((acc, char) => acc + char.toUpperCase(), '');
-                  return `<span class="avatar-initial rounded-circle bg-label-${state}">${initials}</span>`;
-                })();
-
-            // Create full row output
-            return `
-                  <div class="d-flex align-items-center">
-                      <span class="me-4">${logoObj[logo]}</span>
-                      <div>
-                          <a class="text-heading text-truncate fw-medium mb-2 text-wrap" href="${baseUrl}app/academy/course-details">
-                              ${course}
-                          </a>
-                          <div class="d-flex align-items-center mt-1">
-                              <div class="avatar-wrapper me-2">
-                                  <div class="avatar avatar-xs">
-                                      ${output}
-                                  </div>
-                              </div>
-                              <small class="text-nowrap text-heading">${user}</small>
-                          </div>
-                      </div>
-                  </div>
-              `;
+            const name = full['course name'] || '';
+            return `<span class="fw-medium text-heading">${name}</span>`;
           }
         },
         {
@@ -435,21 +416,19 @@ document.addEventListener('DOMContentLoaded', function (e) {
         {
           targets: 4,
           render: (data, type, full) => {
-            const { status: statusNumber, number: averageNumber } = full;
-
+            const percent = full['progress'] || '0%';
             return `
                   <div class="d-flex align-items-center gap-3">
-                      <p class="fw-medium mb-0 text-heading">${statusNumber}</p>
+                      <p class="fw-medium mb-0 text-heading">${percent}</p>
                       <div class="progress bg-label-primary w-100" style="height: 8px;">
                           <div
                               class="progress-bar"
-                              style="width: ${statusNumber}"
-                              aria-valuenow="${statusNumber}"
+                              style="width: ${percent}"
+                              aria-valuenow="${parseInt(percent)}"
                               aria-valuemin="0"
                               aria-valuemax="100">
                           </div>
                       </div>
-                      <small>${averageNumber}</small>
                   </div>
               `;
           }
@@ -457,24 +436,8 @@ document.addEventListener('DOMContentLoaded', function (e) {
         {
           targets: 5,
           render: (data, type, full) => {
-            const { user_number: userNumber, note, view } = full;
-
-            return `
-                  <div class="d-flex align-items-center justify-content-between">
-                      <div class="d-flex align-items-center w-px-75">
-                          <i class="icon-base ri ri-group-line icon-24px me-1_5 text-primary"></i>
-                          <span>${userNumber}</span>
-                      </div>
-                      <div class="d-flex align-items-center w-px-75">
-                          <i class="icon-base ri ri-computer-line icon-24px me-1_5 text-info"></i>
-                          <span>${note}</span>
-                      </div>
-                      <div class="d-flex align-items-center w-px-75">
-                          <i class="icon-base ri ri-video-upload-line icon-24px me-1_5 text-danger scaleX-n1-rtl"></i>
-                          <span>${view}</span>
-                      </div>
-                  </div>
-              `;
+            const attended = full['attended'] ?? 0;
+            return `<span class="badge bg-label-success">Attended ${attended}</span>`;
           }
         }
       ],

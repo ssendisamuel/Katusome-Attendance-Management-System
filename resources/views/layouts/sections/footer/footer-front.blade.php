@@ -81,7 +81,7 @@
           <script>
           document.write(new Date().getFullYear());
           </script>
-          , Made with <i class="icon-base ri ri-heart-fill text-danger"></i> by
+          , Developed with <i class="icon-base ri ri-heart-fill text-danger"></i> by
         </span>
         <a href="{{ config('variables.creatorUrl') ?: url('/') }}" target="_blank"
           class="footer-link fw-medium footer-theme-link">{{ config('variables.creatorName', 'Ssendi Samuel') }}</a>
