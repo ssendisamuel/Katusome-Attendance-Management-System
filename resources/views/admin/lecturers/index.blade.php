@@ -8,7 +8,16 @@
   <a href="{{ route('admin.lecturers.create') }}" class="btn btn-primary">Add Lecturer</a>
 </div>
 @if(session('success'))
-  <div class="alert alert-success">{{ session('success') }}</div>
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+@endif
+@if(session('info'))
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    {{ session('info') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
 @endif
 <div class="card">
   <div class="table-responsive">

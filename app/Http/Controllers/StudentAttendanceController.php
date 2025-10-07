@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Attendance;
 use App\Models\Schedule;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AttendanceConfirmationMail;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+// use Illuminate\Support\Facades\Auth; // replaced with auth() helper
 use Illuminate\Support\Facades\Storage;
 use App\Models\LocationSetting;
 
@@ -14,7 +16,7 @@ class StudentAttendanceController extends Controller
 {
     public function today(Request $request)
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return redirect()->route('login')->withErrors(['email' => 'You must be a student to access attendance.']);
@@ -40,7 +42,7 @@ class StudentAttendanceController extends Controller
     }
     public function create(Request $request)
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return redirect()->route('login')->withErrors(['email' => 'You must be a student to access check-in.']);
@@ -59,7 +61,7 @@ class StudentAttendanceController extends Controller
 
     public function show(Request $request, Schedule $schedule)
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return redirect()->route('login')->withErrors(['email' => 'You must be a student to access check-in.']);
@@ -81,9 +83,30 @@ class StudentAttendanceController extends Controller
         return view('attendance.checkin_show', compact('schedule', 'student', 'existing', 'setting'));
     }
 
+    /**
+     * Show a summary page for a specific attendance record
+     */
+    public function summary(Request $request, Attendance $attendance)
+    {
+        $user = auth()->user();
+        $student = optional($user)->student;
+        if (!$student) {
+            return redirect()->route('login')->withErrors(['email' => 'You must be a student to access attendance.']);
+        }
+
+        // Ensure the attendance belongs to the logged-in student
+        if ($attendance->student_id !== $student->id) {
+            abort(403);
+        }
+
+        $schedule = Schedule::with(['course', 'lecturer', 'lecturers'])->findOrFail($attendance->schedule_id);
+        $setting = LocationSetting::current();
+        return view('attendance.summary', compact('attendance', 'schedule', 'student', 'setting'));
+    }
+
     public function store(Request $request)
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return redirect()->route('login')->withErrors(['email' => 'You must be a student to mark attendance.']);
@@ -128,7 +151,11 @@ class StudentAttendanceController extends Controller
             $path = $request->file('selfie')->store('selfies', 'public');
         }
 
-        Attendance::updateOrCreate(
+        $prior = Attendance::where('schedule_id', $schedule->id)
+            ->where('student_id', $student->id)
+            ->first();
+
+        $attendance = Attendance::updateOrCreate(
             [
                 'schedule_id' => $schedule->id,
                 'student_id' => $student->id,
@@ -142,9 +169,34 @@ class StudentAttendanceController extends Controller
             ]
         );
 
+        // Queue a confirmation email (high volume-friendly)
+        $shouldNotify = !$prior
+            || optional($prior->marked_at)->ne($now)
+            || $prior->status !== $status
+            || $prior->selfie_path !== $path;
+        if ($shouldNotify && optional($student->user)->email) {
+            Mail::to($student->user->email)->queue(
+                new AttendanceConfirmationMail($student, $schedule, $attendance)
+            );
+        }
+
         $courseName = optional($schedule->course)->name;
         $successMsg = 'Attendance recorded successfully at ' . $now->format('h:i A')
             . ($courseName ? (' for ' . $courseName) : '') . '.';
+
+        // If this is an AJAX request (fetch/XHR), return JSON so the client
+        // can show a toast and then redirect without consuming the flash.
+        if ($request->expectsJson() || $request->ajax()) {
+            // Persist a flash for the next full page load (dashboard)
+            session()->flash('success', $successMsg);
+            return response()->json([
+                'message' => $successMsg,
+                'redirect' => route('student.dashboard'),
+                'attendance_id' => $attendance->id,
+            ]);
+        }
+
+        // Default: redirect to dashboard with success flash for full-page post
         return redirect()->route('student.dashboard')->with('success', $successMsg);
     }
 

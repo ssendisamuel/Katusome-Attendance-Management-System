@@ -6,6 +6,30 @@
 
 @section('content')
 <div class="row gy-6">
+  @if(session('success'))
+    <div class="col-12">
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    </div>
+  @endif
+  @if(session('error'))
+    <div class="col-12">
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    </div>
+  @endif
+  @if(session('info'))
+    <div class="col-12">
+      <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {{ session('info') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    </div>
+  @endif
   <!-- Top stats cards styled like academy -->
   <div class="col-12">
     <div class="card bg-transparent shadow-none border-0 mb-6">
@@ -74,6 +98,19 @@
             </div>
             <div>
               <span class="icon-base ri ri-bar-chart-2-line icon-32px text-success"></span>
+            </div>
+          </div>
+          <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">Email Queue Health</h6>
+              <form method="POST" action="{{ route('admin.email.failed.retry') }}">
+                @csrf
+                <button class="btn btn-sm btn-outline-primary" type="submit">Retry Failed Welcome Emails</button>
+              </form>
+            </div>
+            <div class="card-body">
+              <p class="mb-2">Failed jobs (welcome emails): <strong>{{ $failedWelcomeEmails ?? '—' }}</strong></p>
+              <p class="text-muted small mb-0">Queue: <code>{{ config('queue.default') }}</code> | Connection: <code>{{ env('QUEUE_CONNECTION') }}</code></p>
             </div>
           </div>
         </div>

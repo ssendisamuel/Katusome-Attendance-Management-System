@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(LocaleMiddleware::class);
+        $middleware->web(App\Http\Middleware\ForcePasswordChange::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

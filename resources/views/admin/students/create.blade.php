@@ -5,7 +5,7 @@
 @section('content')
 <h4 class="mb-4">Add Student</h4>
 <div class="card p-4">
-  <form method="POST" action="{{ route('admin.students.store') }}">
+  <form method="POST" action="{{ route('admin.students.store') }}" id="studentCreateForm">
     @csrf
     <div class="mb-3">
       <label class="form-label">Name</label>
@@ -67,11 +67,16 @@
       <input type="number" min="1" max="10" name="year_of_study" class="form-control" value="{{ old('year_of_study') }}">
       @error('year_of_study')<div class="text-danger small">{{ $message }}</div>@enderror
     </div>
-    <button class="btn btn-primary">Save</button>
+    <div class="mb-3">
+      <label class="form-label">Initial Password (optional)</label>
+      <input type="text" name="initial_password" class="form-control" value="{{ old('initial_password') }}" placeholder="Defaults to 'password' if blank">
+      @error('initial_password')<div class="text-danger small">{{ $message }}</div>@enderror
+    </div>
+    <button type="submit" class="btn btn-primary" id="btnSaveStudent" data-loading-text="Adding Student...">Save</button>
     <a href="{{ route('admin.students.index') }}" class="btn btn-outline-secondary">Cancel</a>
   </form>
 </div>
-@push('scripts')
+@section('page-script')
 <script>
   (function() {
     const programSelect = document.getElementById('studentProgram');
@@ -95,7 +100,17 @@
       });
     }
     programSelect?.addEventListener('change', refreshGroups);
+
+    const form = document.getElementById('studentCreateForm');
+    const submitBtn = document.getElementById('btnSaveStudent');
+    if (form && submitBtn) {
+      form.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        const loadingText = submitBtn.getAttribute('data-loading-text') || 'Processing...';
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + loadingText;
+      });
+    }
   })();
 </script>
-@endpush
+@endsection
 @endsection

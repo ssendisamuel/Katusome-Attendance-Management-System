@@ -81,6 +81,9 @@ return [
 
     'locale' => env('APP_LOCALE', 'en'),
 
+    // Allowed Google domain for OAuth student sign-in
+    'allowed_google_domain' => env('ALLOWED_GOOGLE_DOMAIN', 'mubs.ac.ug'),
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),

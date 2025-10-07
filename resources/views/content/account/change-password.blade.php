@@ -23,6 +23,11 @@
           <h5 class="mb-0">Change Password</h5>
         </div>
         <div class="card-body">
+          @if(auth()->user() && auth()->user()->must_change_password)
+            <div class="alert alert-warning" role="alert">
+              For your security, you must change your password before accessing other pages.
+            </div>
+          @endif
           @if(session('success'))
             <div class="alert alert-success" role="alert">{{ session('success') }}</div>
           @endif

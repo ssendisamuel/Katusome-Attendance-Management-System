@@ -35,14 +35,18 @@
       </div>
 
       <div class="col-md-6">
-        <label class="form-label">Lecturer (optional)</label>
-        <select name="lecturer_id" class="form-select">
-          <option value="">None</option>
+        <label class="form-label">Lecturers (optional)</label>
+@php($hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule'))
+        @php($selectedLecturers = collect(old('lecturer_ids', ($hasPivot && $schedule->relationLoaded('lecturers')) ? ($schedule->lecturers->pluck('id') ?? []) : (optional($schedule->lecturer_id) ? [ $schedule->lecturer_id ] : []))))
+        <label class="form-label">Lecturers (optional)</label>
+        <select name="lecturer_ids[]" class="form-select" multiple>
           @foreach($lecturers as $lecturer)
-            <option value="{{ $lecturer->id }}" {{ (old('lecturer_id', $schedule->lecturer_id) == $lecturer->id) ? 'selected' : '' }}>{{ $lecturer->name }}</option>
+            <option value="{{ $lecturer->id }}" {{ $selectedLecturers->contains($lecturer->id) ? 'selected' : '' }}>{{ $lecturer->name }}</option>
           @endforeach
         </select>
-        @error('lecturer_id')<div class="text-danger small">{{ $message }}</div>@enderror
+        <div class="form-text">Hold Ctrl/Command to select multiple</div>
+        @error('lecturer_ids')<div class="text-danger small">{{ $message }}</div>@enderror
+        @error('lecturer_ids.*')<div class="text-danger small">{{ $message }}</div>@enderror
       </div>
 
       <div class="col-md-6">

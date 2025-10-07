@@ -25,7 +25,8 @@
         <ul class="list-unstyled mb-4">
           <li><strong>Student:</strong> {{ $student->name }} ({{ $student->reg_no ?? $student->student_no }})</li>
           <li><strong>Course:</strong> {{ optional($schedule->course)->name }} ({{ optional($schedule->course)->code }})</li>
-          <li><strong>Lecturer:</strong> {{ optional($schedule->lecturer)->name ?? '—' }}</li>
+@php($hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule'))
+          <li><strong>Lecturer:</strong> {{ ($hasPivot && $schedule->relationLoaded('lecturers') && $schedule->lecturers && $schedule->lecturers->count()) ? $schedule->lecturers->pluck('name')->implode(', ') : (optional($schedule->lecturer)->name ?? '—') }}</li>
           <li><strong>Start Time:</strong> {{ $schedule->start_at->format('H:i') }}</li>
           <li><strong>Current Time:</strong> <span id="currentTime">—</span></li>
         </ul>
@@ -356,14 +357,22 @@ confirmBtn.addEventListener('click', (e) => {
           method: 'POST',
           body: formData,
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
           }
         })
-        .then(response => {
+        .then(async response => {
+          // Try to parse JSON if available
+          let data = null;
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            data = await response.json().catch(() => null);
+          }
+
           if (response.redirected) {
-            // Success - show toast and redirect
+            const title = (data && data.message) ? data.message : 'Attendance recorded!';
             if (Toast) {
-              Toast.fire({ icon: 'success', title: 'Attendance recorded!' }).then(() => {
+              Toast.fire({ icon: 'success', title }).then(() => {
                 if (previewModal) previewModal.hide();
                 if (previewFallback) previewFallback.classList.add('d-none');
                 captureBtn.classList.remove('d-none');
@@ -378,14 +387,19 @@ confirmBtn.addEventListener('click', (e) => {
               window.location.href = response.url;
             }
           } else if (response.ok) {
-            // Non-redirect success; attempt to proceed
-            if (Toast) Toast.fire({ icon: 'success', title: 'Attendance recorded!' });
+            const redirectUrl = (data && data.redirect) ? data.redirect : (data && data.url) ? data.url : null;
+            const title = (data && data.message) ? data.message : 'Attendance recorded!';
+            if (Toast) Toast.fire({ icon: 'success', title });
             if (previewModal) previewModal.hide();
             if (previewFallback) previewFallback.classList.add('d-none');
             captureBtn.classList.remove('d-none');
             retakeBtn.classList.add('d-none');
+            if (redirectUrl) {
+              window.location.href = redirectUrl;
+            }
           } else {
-            return response.text().then(text => { throw new Error(text); });
+            const text = data ? JSON.stringify(data) : await response.text();
+            throw new Error(text || 'Submission failed');
           }
         })
         .catch(error => {

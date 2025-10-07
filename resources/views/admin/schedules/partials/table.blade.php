@@ -17,7 +17,11 @@
         <tr>
           <td>{{ optional($schedule->course)->name }}</td>
           <td>{{ optional($schedule->group)->name }}</td>
-          <td>{{ optional($schedule->lecturer)->name }}</td>
+          <td>
+@php($hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule'))
+            @php($names = ($hasPivot && $schedule->relationLoaded('lecturers') && $schedule->lecturers && $schedule->lecturers->count()) ? $schedule->lecturers->pluck('name')->implode(', ') : optional($schedule->lecturer)->name)
+            {{ $names ?: '—' }}
+          </td>
           <td>{{ optional($schedule->series)->name }}</td>
           <td>{{ $schedule->location }}</td>
           <td>{{ $schedule->start_at?->format('Y-m-d H:i') }}</td>

@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Attendance::with(['schedule.course', 'schedule.group', 'schedule.lecturer', 'student']);
+        $hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule');
+        $withRels = ['schedule.course', 'schedule.group', 'schedule.lecturer', 'student'];
+        if ($hasPivot) { $withRels[] = 'schedule.lecturers'; }
+        $query = Attendance::with($withRels);
 
         if ($request->filled('course_id')) {
             $query->whereHas('schedule', fn($q) => $q->where('course_id', $request->integer('course_id')));
@@ -19,7 +23,13 @@ class AttendanceController extends Controller
             $query->whereHas('schedule', fn($q) => $q->where('group_id', $request->integer('group_id')));
         }
         if ($request->filled('lecturer_id')) {
-            $query->whereHas('schedule', fn($q) => $q->where('lecturer_id', $request->integer('lecturer_id')));
+            $lecId = $request->integer('lecturer_id');
+            $query->whereHas('schedule', function($q) use ($lecId, $hasPivot){
+                $q->where('lecturer_id', $lecId);
+                if ($hasPivot) {
+                    $q->orWhereHas('lecturers', fn($qq) => $qq->where('lecturers.id', $lecId));
+                }
+            });
         }
         if ($request->filled('date')) {
             $query->whereDate('marked_at', $request->input('date'));
@@ -32,6 +42,9 @@ class AttendanceController extends Controller
                   ->orWhereHas('schedule.course', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.group', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.lecturer.user', fn($qq) => $qq->where('name', 'like', $term));
+                if ($hasPivot) {
+                    $q->orWhereHas('schedule.lecturers.user', fn($qq) => $qq->where('name', 'like', $term));
+                }
             });
         }
 
@@ -42,8 +55,17 @@ class AttendanceController extends Controller
         if ($request->filled('course_id')) {
             $groupIds = \App\Models\Schedule::where('course_id', $request->integer('course_id'))
                 ->pluck('group_id')->filter()->unique()->values();
-            $lecturerIds = \App\Models\Schedule::where('course_id', $request->integer('course_id'))
-                ->pluck('lecturer_id')->filter()->unique()->values();
+            $directLecturerIds = \App\Models\Schedule::where('course_id', $request->integer('course_id'))
+                ->pluck('lecturer_id')->filter();
+            $lecturerIds = collect($directLecturerIds);
+            if ($hasPivot) {
+                $pivotLecturerIds = \Illuminate\Support\Facades\DB::table('lecturer_schedule')
+                    ->join('schedules', 'lecturer_schedule.schedule_id', '=', 'schedules.id')
+                    ->where('schedules.course_id', $request->integer('course_id'))
+                    ->pluck('lecturer_schedule.lecturer_id');
+                $lecturerIds = $lecturerIds->merge($pivotLecturerIds);
+            }
+            $lecturerIds = $lecturerIds->unique()->values();
             $groups = \App\Models\Group::whereIn('id', $groupIds)->get();
             $lecturers = \App\Models\Lecturer::whereIn('id', $lecturerIds)->get();
         } else {

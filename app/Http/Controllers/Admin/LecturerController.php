@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeUserMail;
 
 class LecturerController extends Controller
 {
@@ -26,23 +29,36 @@ class LecturerController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'initial_password' => ['nullable', 'string', 'min:8'],
+        ], [
+            'email.regex' => 'Email must be a mubs.ac.ug address.',
         ]);
 
         // Create canonical user record for lecturer
+        $initial = $data['initial_password'] ?? 'password';
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
-            'password' => Hash::make(Str::random(12)),
+            'password' => Hash::make($initial),
+            'must_change_password' => true,
             'role' => 'lecturer',
         ]);
+
+        // Build reset URL and login URL for welcome email
+        $token = Password::broker()->createToken($user);
+        $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+        $loginUrl = url(route('login', [], false));
+        Mail::to($user->email)->queue(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
 
         Lecturer::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
         ]);
-        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer created');
+        return redirect()->route('admin.lecturers.index')
+            ->with('success', 'Lecturer created')
+            ->with('info', 'Welcome emails are being sent in the background');
     }
 
     public function edit(Lecturer $lecturer)
@@ -54,8 +70,10 @@ class LecturerController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($lecturer->user)->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($lecturer->user)->id, 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
             'phone' => ['nullable', 'string', 'max:50'],
+        ], [
+            'email.regex' => 'Email must be a mubs.ac.ug address.',
         ]);
 
         // Ensure canonical user exists and is updated
@@ -63,9 +81,14 @@ class LecturerController extends Controller
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
-                'password' => Hash::make(Str::random(12)),
+                'password' => Hash::make('password'),
+                'must_change_password' => true,
                 'role' => 'lecturer',
             ]);
+            $token = Password::broker()->createToken($user);
+            $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+            $loginUrl = url(route('login', [], false));
+            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
             $lecturer->user()->associate($user);
         } else {
             $lecturer->user->name = $data['name'];
@@ -75,12 +98,18 @@ class LecturerController extends Controller
 
         $lecturer->phone = $data['phone'] ?? null;
         $lecturer->save();
-        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer updated');
+        return redirect()->route('admin.lecturers.index')
+            ->with('success', 'Lecturer updated')
+            ->with('info', 'Welcome emails are being sent in the background');
     }
 
     public function destroy(Lecturer $lecturer)
     {
+        $user = $lecturer->user;
         $lecturer->delete();
+        if ($user) {
+            $user->delete();
+        }
         return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer deleted');
     }
 }

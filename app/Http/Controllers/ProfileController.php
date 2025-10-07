@@ -6,13 +6,12 @@ use App\Models\User;
 use App\Models\Student;
 use App\Models\Lecturer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class ProfileController extends Controller
 {
     public function show()
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = $user && $user->role === 'student' ? $user->student : null;
         $lecturer = $user && $user->role === 'lecturer' ? $user->lecturer : null;
 
@@ -21,7 +20,7 @@ class ProfileController extends Controller
 
     public function update(Request $request)
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $context = $request->input('context');
 
         if ($context === 'avatar') {

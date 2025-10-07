@@ -10,6 +10,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeUserMail;
 
 class StudentController extends Controller
 {
@@ -31,7 +34,7 @@ class StudentController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             // Validate against canonical users table
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
             'phone' => ['nullable', 'string', 'max:50'],
             'gender' => ['nullable', 'in:male,female,other'],
             'student_no' => ['required', 'string', 'max:50', 'unique:students,student_no'],
@@ -39,15 +42,25 @@ class StudentController extends Controller
             'program_id' => ['required', 'exists:programs,id'],
             'group_id' => ['required', 'exists:groups,id'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'initial_password' => ['nullable', 'string', 'min:8'],
+        ], [
+            'email.regex' => 'Email must be a mubs.ac.ug address.',
         ]);
 
         // Create canonical user record for student
+        $initial = $data['initial_password'] ?? 'password';
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
-            'password' => Hash::make(Str::random(12)),
+            'password' => Hash::make($initial),
+            'must_change_password' => true,
             'role' => 'student',
         ]);
+        // Build reset URL and login URL for welcome email
+        $token = Password::broker()->createToken($user);
+        $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+        $loginUrl = url(route('login', [], false));
+        Mail::to($user->email)->queue(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
 
         // Create student linked to canonical user
         Student::create([
@@ -60,7 +73,9 @@ class StudentController extends Controller
             'group_id' => $data['group_id'],
             'year_of_study' => $data['year_of_study'] ?? 1,
         ]);
-        return redirect()->route('admin.students.index')->with('success', 'Student created');
+        return redirect()->route('admin.students.index')
+            ->with('success', 'Student created')
+            ->with('info', 'Welcome emails are being sent in the background');
     }
 
     public function edit(Student $student)
@@ -75,7 +90,7 @@ class StudentController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             // Validate against canonical users table
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($student->user)->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($student->user)->id, 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
             'phone' => ['nullable', 'string', 'max:50'],
             'gender' => ['nullable', 'in:male,female,other'],
             'student_no' => ['required', 'string', 'max:50', 'unique:students,student_no,'.$student->id],
@@ -83,15 +98,22 @@ class StudentController extends Controller
             'program_id' => ['required', 'exists:programs,id'],
             'group_id' => ['required', 'exists:groups,id'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
+        ], [
+            'email.regex' => 'Email must be a mubs.ac.ug address.',
         ]);
         // Ensure canonical user exists and is updated
         if (!$student->user) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
-                'password' => Hash::make(Str::random(12)),
+                'password' => Hash::make('password'),
+                'must_change_password' => true,
                 'role' => 'student',
             ]);
+            $token = Password::broker()->createToken($user);
+            $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+            $loginUrl = url(route('login', [], false));
+            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
             $student->user()->associate($user);
         } else {
             $student->user->name = $data['name'];
@@ -109,12 +131,18 @@ class StudentController extends Controller
             'group_id' => $data['group_id'],
             'year_of_study' => $data['year_of_study'] ?? $student->year_of_study,
         ])->save();
-        return redirect()->route('admin.students.index')->with('success', 'Student updated');
+        return redirect()->route('admin.students.index')
+            ->with('success', 'Student updated')
+            ->with('info', 'Welcome emails are being sent in the background');
     }
 
     public function destroy(Student $student)
     {
+        $user = $student->user;
         $student->delete();
+        if ($user) {
+            $user->delete();
+        }
         return redirect()->route('admin.students.index')->with('success', 'Student deleted');
     }
 
@@ -178,6 +206,11 @@ class StudentController extends Controller
                 $errors[] = "Missing required fields for student_no {$studentNo}";
                 continue;
             }
+            if (!preg_match('/^[^@\s]+@mubs\.ac\.ug$/i', $email)) {
+                $skipped++;
+                $errors[] = "Invalid email domain for {$email}";
+                continue;
+            }
             if (!in_array($gender, ['male','female','other',''], true)) {
                 $skipped++;
                 $errors[] = "Invalid gender '{$gender}' for {$studentNo}";
@@ -214,9 +247,18 @@ class StudentController extends Controller
                         $user = User::create([
                             'name' => $name,
                             'email' => $email,
-                            'password' => Hash::make(Str::random(12)),
+                            'password' => Hash::make('password'),
+                            'must_change_password' => true,
                             'role' => 'student',
                         ]);
+                        $token = Password::broker()->createToken($user);
+                        $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+                        $loginUrl = url(route('login', [], false));
+                        try {
+                            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                        } catch (\Throwable $e) {
+                            $errors[] = "Mail queue failure for {$email}: " . $e->getMessage();
+                        }
                     }
                     $existing->user()->associate($user);
                 } else {
@@ -233,9 +275,18 @@ class StudentController extends Controller
                     $user = User::create([
                         'name' => $name,
                         'email' => $email,
-                        'password' => Hash::make(Str::random(12)),
+                        'password' => Hash::make('password'),
+                        'must_change_password' => true,
                         'role' => 'student',
                     ]);
+                    $token = Password::broker()->createToken($user);
+                    $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+                    $loginUrl = url(route('login', [], false));
+                    try {
+                        Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                    } catch (\Throwable $e) {
+                        $errors[] = "Mail queue failure for {$email}: " . $e->getMessage();
+                    }
                 }
                 Student::create(array_merge($studentAttrs, [
                     'user_id' => $user->id,
@@ -251,6 +302,8 @@ class StudentController extends Controller
             $message .= ' Errors: ' . implode(' | ', array_slice($errors, 0, 5));
         }
 
-        return redirect()->route('admin.students.index')->with('success', $message);
+        return redirect()->route('admin.students.index')
+            ->with('success', $message)
+            ->with('info', 'Welcome emails are being sent in the background');
     }
 }

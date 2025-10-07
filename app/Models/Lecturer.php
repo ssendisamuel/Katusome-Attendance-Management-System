@@ -56,11 +56,18 @@ class Lecturer extends Model
 
     public function schedules()
     {
+        // Legacy single-lecturer relation via foreign key
         return $this->hasMany(Schedule::class);
     }
 
     public function scheduleSeries()
     {
         return $this->hasMany(ScheduleSeries::class);
+    }
+
+    public function assignedSchedules()
+    {
+        return $this->belongsToMany(Schedule::class, 'lecturer_schedule')
+            ->withTimestamps();
     }
 }

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\Auth;
+// use Illuminate\Support\Facades\Auth; // replaced with auth() helper
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 
@@ -46,9 +46,10 @@ class PasswordResetController extends Controller
             function ($user, $password) {
                 $user->forceFill([
                     'password' => Hash::make($password),
+                    'must_change_password' => false,
                 ])->save();
 
-                Auth::logoutOtherDevices($password);
+                auth()->logoutOtherDevices($password);
             }
         );
 

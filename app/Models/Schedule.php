@@ -33,6 +33,12 @@ class Schedule extends Model
         return $this->belongsTo(Lecturer::class);
     }
 
+    public function lecturers()
+    {
+        return $this->belongsToMany(Lecturer::class, 'lecturer_schedule')
+            ->withTimestamps();
+    }
+
     public function series()
     {
         return $this->belongsTo(ScheduleSeries::class, 'series_id');

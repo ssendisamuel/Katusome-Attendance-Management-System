@@ -25,6 +25,7 @@ use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ChangePasswordController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\GoogleController;
 
 // Main Page Route -> Redirect to dashboards
 Route::get('/', function () {
@@ -54,6 +55,12 @@ Route::get('/login', [LoginBasic::class, 'index'])->name('login');
 Route::get('/register', [RegisterBasic::class, 'index'])->name('register');
 // Registration handling
 Route::post('/register', [RegistrationController::class, 'store'])->name('register.post');
+
+// Google OAuth routes
+Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])->name('oauth.google.redirect');
+Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name('oauth.google.callback');
+Route::match(['get','post'], '/auth/google/complete-profile', [GoogleController::class, 'completeProfile'])
+    ->name('oauth.google.complete-profile');
 
 // Authentication handling
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
@@ -129,6 +136,11 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
             })
             ->count();
 
+        // Failed welcome emails
+        $failedWelcomeEmails = \Illuminate\Support\Facades\DB::table('failed_jobs')
+            ->where('payload', 'like', '%WelcomeUserMail%')
+            ->count();
+
         return view('content.dashboards.admin', compact(
             'studentsCount',
             'coursesCount',
@@ -142,9 +154,25 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
             'presentToday',
             'absentToday',
             'lateToday',
-            'unmarkedToday'
+            'unmarkedToday',
+            'failedWelcomeEmails'
         ));
     })->name('dashboard');
+
+    // Retry failed welcome emails
+    Route::post('email/failed-retry', function () {
+        $uuids = \Illuminate\Support\Facades\DB::table('failed_jobs')
+            ->where('payload', 'like', '%WelcomeUserMail%')
+            ->pluck('uuid')
+            ->all();
+
+        if (count($uuids) > 0) {
+            \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => $uuids]);
+            return back()->with('success', 'Retrying failed welcome emails');
+        }
+
+        return back()->with('error', 'No failed welcome emails to retry');
+    })->name('email.failed.retry');
 });
 
 // Student check-in routes
@@ -163,6 +191,10 @@ Route::middleware(['auth', 'can:student'])->group(function () {
     Route::get('/checkin/{schedule}', [StudentAttendanceController::class, 'show'])
         ->name('attendance.checkin.show');
     Route::post('/checkin', [StudentAttendanceController::class, 'store'])->name('attendance.checkin.store');
+
+    // New: Attendance summary page for a specific recorded attendance
+    Route::get('/attendance/summary/{attendance}', [StudentAttendanceController::class, 'summary'])
+        ->name('attendance.summary');
 });
 
 // Lecturer marking routes
@@ -187,4 +219,28 @@ Route::get('/password/reset', [PasswordResetController::class, 'request'])->name
 Route::post('/password/email', [PasswordResetController::class, 'email'])->name('password.email');
 Route::get('/password/reset/{token}', [PasswordResetController::class, 'reset'])->name('password.reset');
 Route::post('/password/reset', [PasswordResetController::class, 'update'])->name('password.update');
+
+// Dev: Preview attendance confirmation email
+Route::get('/dev/preview-email/attendance', function () {
+    $student = \App\Models\Student::with('user')->first();
+    $schedule = $student
+        ? \App\Models\Schedule::with('course')->where('group_id', $student->group_id)->orderByDesc('start_at')->first()
+        : \App\Models\Schedule::with('course')->orderByDesc('start_at')->first();
+    $attendance = ($student && $schedule)
+        ? \App\Models\Attendance::firstOrCreate([
+            'schedule_id' => $schedule->id,
+            'student_id' => $student->id,
+        ], [
+            'status' => 'present',
+            'marked_at' => \Carbon\Carbon::now(),
+        ])
+        : new \App\Models\Attendance(['status' => 'present', 'marked_at' => \Carbon\Carbon::now()]);
+
+    $mailable = new \App\Mail\AttendanceConfirmationMail(
+        $student ?? new \App\Models\Student(),
+        $schedule ?? new \App\Models\Schedule(),
+        $attendance
+    );
+    return $mailable->render();
+});
 

@@ -6,14 +6,14 @@ use App\Models\Attendance;
 use App\Models\Schedule;
 use App\Models\Student;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+// use Illuminate\Support\Facades\Auth; // replaced with auth() helper
 use Carbon\Carbon;
 
 class StudentDashboardController extends Controller
 {
     public function index()
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return redirect()->route('login')->withErrors(['email' => 'You must be a student to access the dashboard.']);
@@ -175,7 +175,7 @@ class StudentDashboardController extends Controller
 
     public function coursesJson()
     {
-        $user = Auth::user();
+        $user = auth()->user();
         $student = optional($user)->student;
         if (!$student) {
             return response()->json(['data' => []]);

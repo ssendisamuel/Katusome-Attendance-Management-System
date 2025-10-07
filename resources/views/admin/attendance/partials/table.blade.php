@@ -19,7 +19,12 @@
           <td>{{ optional($attendance->student)->name }}</td>
           <td>{{ optional($attendance->schedule->course)->name }}</td>
           <td>{{ optional($attendance->schedule->group)->name }}</td>
-          <td>{{ optional($attendance->schedule->lecturer)->name }}</td>
+          <td>
+            @php($sch = $attendance->schedule)
+@php($hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule'))
+            @php($names = ($hasPivot && $sch && $sch->relationLoaded('lecturers') && $sch->lecturers && $sch->lecturers->count()) ? $sch->lecturers->pluck('name')->implode(', ') : optional($sch->lecturer)->name)
+            {{ $names ?: '—' }}
+          </td>
           <td>{{ ucfirst($attendance->status) }}</td>
           <td>{{ $attendance->marked_at?->format('Y-m-d H:i') }}</td>
           <td>{{ $attendance->lat && $attendance->lng ? $attendance->lat . ', ' . $attendance->lng : '—' }}</td>

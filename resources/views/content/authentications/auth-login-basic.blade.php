@@ -100,21 +100,38 @@ $customizerHidden = 'customizer-hide';
           <h4 class="mb-1">Welcome to Katusome Attendance</h4>
           <p class="mb-6">Sign in with your official MUBS credentials to record or manage class attendance.</p>
 
+          <!-- Global error alert -->
+          @if ($errors->any())
+          <div class="alert alert-danger d-flex align-items-start" role="alert">
+            <i class="ri-error-warning-line me-3 mt-1"></i>
+            <div>
+              <strong>Login failed.</strong>
+              <div class="small">Please check the messages below and try again.</div>
+            </div>
+          </div>
+          @endif
+
           <!-- Credentials Login Form -->
           <form id="formAuthentication" class="mb-5" action="{{ route('login.post') }}" method="POST">
             @csrf
             <div class="form-floating form-floating-outline mb-5 form-control-validation">
-              <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" value="{{ old('email') }}" required autofocus />
+              <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" placeholder="Enter your email" value="{{ old('email') }}" required autofocus />
               <label for="email">Email</label>
+              @error('email')
+              <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
             </div>
             <div class="mb-5 form-password-toggle form-control-validation">
               <div class="input-group input-group-merge">
                 <div class="form-floating form-floating-outline">
-                  <input type="password" id="password" class="form-control" name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;" aria-describedby="password" required />
+                  <input type="password" id="password" class="form-control @error('password') is-invalid @enderror" name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;" aria-describedby="password" required />
                   <label for="password">Password</label>
                 </div>
                 <span class="input-group-text cursor-pointer"><i class="icon-base ri ri-eye-off-line icon-20px"></i></span>
               </div>
+              @error('password')
+              <div class="invalid-feedback d-block">{{ $message }}</div>
+              @enderror
             </div>
             <div class="d-flex justify-content-between align-items-center mb-5">
               <div class="form-check">
@@ -137,7 +154,7 @@ $customizerHidden = 'customizer-hide';
 
           <!-- Google Sign-In -->
           <div class="mb-5">
-            <a href="javascript:;" class="btn btn-google w-100" aria-label="Sign in with Google" title="Sign in with Google" role="button">
+            <a href="{{ route('oauth.google.redirect') }}" class="btn btn-google w-100" aria-label="Sign in with Google" title="Sign in with Google" role="button">
               <span class="google-icon-chip" aria-hidden="true">
                 <span class="google-icon">
                   <!-- Inline Google 'G' SVG -->
