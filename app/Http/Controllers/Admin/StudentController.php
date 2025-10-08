@@ -12,14 +12,79 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use App\Mail\WelcomeUserMail;
 
 class StudentController extends Controller
 {
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $students = Student::with(['program', 'group'])->paginate(15);
-        return view('admin.students.index', compact('students'));
+        $query = Student::with(['program', 'group', 'user']);
+
+        if ($request->filled('program_id')) {
+            $query->where('program_id', $request->integer('program_id'));
+        }
+        if ($request->filled('group_id')) {
+            $query->where('group_id', $request->integer('group_id'));
+        }
+        if ($request->filled('year')) {
+            $query->where('year_of_study', $request->integer('year'));
+        }
+        if ($request->filled('search')) {
+            $term = '%' . trim($request->input('search')) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('user', fn($qq) => $qq->where('name', 'like', $term)
+                                                 ->orWhere('email', 'like', $term))
+                  ->orWhereHas('program', fn($qq) => $qq->where('name', 'like', $term))
+                  ->orWhereHas('group', fn($qq) => $qq->where('name', 'like', $term))
+                  ->orWhere('student_no', 'like', $term)
+                  ->orWhere('reg_no', 'like', $term);
+            });
+        }
+
+        $students = $query->orderBy(
+            DB::raw('(select name from users where users.id = students.user_id)'),
+            'asc'
+        )->paginate(15)->appends($request->query());
+
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            $rows = $query->orderBy(
+                DB::raw('(select name from users where users.id = students.user_id)'),
+                'asc'
+            )->get();
+            return response()->json([
+                'title' => 'Students',
+                'columns' => ['Name', 'Program', 'Group', 'Year'],
+                'rows' => $rows->map(function ($s) {
+                    return [
+                        optional($s->user)->name ?? $s->name,
+                        optional($s->program)->name,
+                        optional($s->group)->name,
+                        $s->year_of_study,
+                    ];
+                }),
+                'meta' => [
+                    'generated_at' => now()->format('d M Y H:i'),
+                    'filters' => [
+                        'program_id' => $request->input('program_id'),
+                        'group_id' => $request->input('group_id'),
+                        'year' => $request->input('year'),
+                        'search' => $request->input('search'),
+                    ],
+                    'user' => optional($request->user())->name,
+                ],
+                'summary' => [
+                    'total' => $rows->count(),
+                ],
+            ]);
+        }
+
+        $programs = Program::all();
+        $groups = Group::all();
+        if ($request->ajax() || $request->input('fragment') === 'table') {
+            return view('admin.students.partials.table', compact('students'));
+        }
+        return view('admin.students.index', compact('students', 'programs', 'groups'));
     }
 
     public function create()
@@ -144,6 +209,34 @@ class StudentController extends Controller
             $user->delete();
         }
         return redirect()->route('admin.students.index')->with('success', 'Student deleted');
+    }
+
+    // Search students for typeahead suggestions
+    public function search(Request $request)
+    {
+        $term = trim($request->input('q', ''));
+        $limit = (int)$request->input('limit', 20);
+        // Search by canonical user name and student_no/reg_no
+        $query = Student::with('group', 'user');
+        if ($term !== '') {
+            $like = '%' . $term . '%';
+            $query->where(function($q) use ($like) {
+                $q->whereHas('user', fn($qq) => $qq->where('name', 'like', $like))
+                  ->orWhere('student_no', 'like', $like)
+                  ->orWhere('reg_no', 'like', $like);
+            });
+        }
+        $students = $query->orderBy('id')->limit($limit)->get();
+        return response()->json(
+            $students->map(function($s){
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'group' => optional($s->group)->name,
+                    'label' => $s->name . (optional($s->group)->name ? (' (' . optional($s->group)->name . ')') : ''),
+                ];
+            })
+        );
     }
 
     // Bulk import

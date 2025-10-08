@@ -72,3 +72,10 @@ document.addEventListener(
   },
   true
 );
+
+// Initialize report export script globally (ensures PDF/Print work cross-pages)
+try {
+  import('../assets/js/report-export.js');
+} catch (e) {
+  // ignore
+}

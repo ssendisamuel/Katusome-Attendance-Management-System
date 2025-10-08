@@ -11,8 +11,28 @@
   <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 <div class="card">
+  <div class="card-body">
+    <form id="programFilters" method="GET" action="{{ route('admin.programs.index') }}" class="row g-3">
+      <div class="col-md-8">
+        <label class="form-label">Search by name or code</label>
+        <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="e.g. CS, Computer Science" />
+      </div>
+      <div class="col-md-4 d-flex align-items-end justify-content-end">
+        <a href="{{ route('admin.programs.index') }}" class="btn btn-outline-secondary me-2">Reset</a>
+        <button type="submit" class="btn btn-primary">Filter</button>
+      </div>
+    </form>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <div></div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-export="print" data-export-target="#programsTableEl"><span class="icon-base ri ri-printer-line me-1"></span>Print</button>
+        <button type="button" class="btn btn-outline-danger" data-export="pdf" data-export-target="#programsTableEl" data-title="Programs" data-filename="Programs.pdf" data-header="Katusome Institute" data-footer-left="Katusome • Programs" data-json-url="{{ route('admin.programs.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-pdf-line me-1"></span>PDF</button>
+        <button type="button" class="btn btn-outline-success" data-export="excel" data-export-target="#programsTableEl" data-title="Programs" data-filename="Programs.xlsx" data-json-url="{{ route('admin.programs.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-excel-line me-1"></span>Excel</button>
+      </div>
+    </div>
+  </div>
   <div class="table-responsive">
-    <table class="table">
+    <table class="table" id="programsTableEl">
       <thead>
         <tr>
           <th>Name</th>
@@ -49,6 +69,7 @@
 @endsection
 
 @section('page-script')
+@vite(['resources/assets/js/report-export.js'])
 <script>
   (function () {
     document.querySelectorAll('.js-delete-program').forEach(function (btn) {

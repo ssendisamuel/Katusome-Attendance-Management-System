@@ -10,13 +10,57 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use App\Mail\WelcomeUserMail;
 
 class LecturerController extends Controller
 {
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $lecturers = Lecturer::paginate(15);
+        $query = Lecturer::query();
+
+        // Search by lecturer identity
+        if ($request->filled('search')) {
+            $term = '%' . trim($request->input('search')) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('user', fn($qq) => $qq->where('name', 'like', $term)
+                                                 ->orWhere('email', 'like', $term))
+                  ->orWhere('phone', 'like', $term);
+            });
+        }
+
+        // Order and paginate
+        $lecturers = $query->orderBy(
+            DB::raw('(select name from users where users.id = lecturers.user_id)'),
+            'asc'
+        )->paginate(15)->appends($request->query());
+
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            $rows = $query->orderBy(
+                DB::raw('(select name from users where users.id = lecturers.user_id)'),
+                'asc'
+            )->get();
+            return response()->json([
+                'title' => 'Lecturers',
+                'columns' => ['Name', 'Email', 'Phone'],
+                'rows' => $rows->map(function ($l) {
+                    $name = optional($l->user)->name ?? $l->name;
+                    $email = optional($l->user)->email ?? $l->email;
+                    return [$name, $email, $l->phone];
+                }),
+                'meta' => [
+                    'generated_at' => now()->format('d M Y H:i'),
+                    'filters' => [
+                        'search' => $request->input('search'),
+                    ],
+                    'user' => optional($request->user())->name,
+                ],
+                'summary' => [
+                    'total' => $rows->count(),
+                ],
+            ]);
+        }
+
         return view('admin.lecturers.index', compact('lecturers'));
     }
 

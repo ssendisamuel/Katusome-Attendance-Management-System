@@ -78,6 +78,65 @@ class AttendanceController extends Controller
             }
             return view('admin.attendance.partials.table', compact('attendances'));
         }
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            $rows = $query->orderBy('marked_at')->get();
+            $present = $rows->where('status', 'present')->count();
+            $late = $rows->where('status', 'late')->count();
+            $absent = $rows->where('status', 'absent')->count();
+            $total = $present + $late + $absent;
+            $rate = $total > 0 ? round(($present / $total) * 100, 1) : 0;
+            $user = $request->user();
+            $firstDate = optional($rows->first())->marked_at;
+            $lastDate = optional($rows->last())->marked_at;
+            $dateRange = ($firstDate && $lastDate)
+                ? ($firstDate->format('d M Y') . ' – ' . $lastDate->format('d M Y'))
+                : null;
+            $courseName = $request->input('course_id') ? optional(\App\Models\Course::find($request->input('course_id')))->name : null;
+            $groupName = $request->input('group_id') ? optional(\App\Models\Group::find($request->input('group_id')))->name : null;
+            $lecturerName = $request->input('lecturer_id') ? optional(\App\Models\Lecturer::find($request->input('lecturer_id')))->name : null;
+            return response()->json([
+                'title' => 'Attendance Records',
+                'columns' => ['Student', 'Course', 'Group', 'Lecturer', 'Status', 'Marked At', 'Location'],
+                'rows' => $rows->map(function ($r) use ($hasPivot) {
+                    $sch = $r->schedule;
+                    $names = ($hasPivot && $sch && $sch->relationLoaded('lecturers') && $sch->lecturers && $sch->lecturers->count())
+                        ? $sch->lecturers->pluck('name')->implode(', ')
+                        : optional($sch->lecturer)->name;
+                    $loc = ($r->lat && $r->lng) ? ($r->lat . ', ' . $r->lng) : '—';
+                    return [
+                        optional($r->student)->name,
+                        optional($r->schedule->course)->name,
+                        optional($r->schedule->group)->name,
+                        $names ?: '—',
+                        ucfirst($r->status),
+                        optional($r->marked_at)?->format('Y-m-d H:i'),
+                        $loc,
+                    ];
+                }),
+                'meta' => [
+                    'institution' => 'Makerere University Business School',
+                    'system' => 'Katusome Attendance Management System',
+                    'faculty' => 'Faculty of Computing and Informatics',
+                    'logo' => asset('storage/mubslogo.png'),
+                    'category' => 'Operational Report',
+                    'course' => $courseName,
+                    'group' => $groupName,
+                    'lecturer' => $lecturerName,
+                    'date_range' => $dateRange,
+                    'generated_on' => now('Africa/Kampala')->format('d M Y, h:i A') . ' (EAT)',
+                    'generated_by' => $user ? ($user->name . ' (' . ($user->role ?? 'User') . ')') : 'System',
+                    'email' => 'attendance@mubs.ac.ug',
+                    'website' => 'https://katusome.ssendi.dev',
+                    'export_note' => $user && ($user->role === 'Lecturer') ? 'Authorized Lecturer Export.' : 'Official Administrative Copy.'
+                ],
+                'summary' => [
+                    'present' => $present,
+                    'late' => $late,
+                    'absent' => $absent,
+                    'rate' => $rate
+                ]
+            ]);
+        }
         return view('admin.attendance.index', compact('attendances', 'courses', 'groups', 'lecturers'));
     }
 

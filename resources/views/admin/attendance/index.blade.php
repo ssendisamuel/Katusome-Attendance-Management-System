@@ -14,6 +14,14 @@
     <div id="attendanceFiltersWrap">
       @include('admin.attendance.partials.filters')
     </div>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <div></div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-export="print"><span class="icon-base ri ri-printer-line me-1"></span>Print</button>
+        <button type="button" class="btn btn-outline-danger" data-export="pdf" data-export-target="#attendancesTableEl" data-title="Attendance Records" data-filename="Attendance_Records_{{ now()->toDateString() }}.pdf" data-header="Katusome Institute" data-footer-left="Katusome • Attendance" data-json-url="{{ route('admin.attendance.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-pdf-line me-1"></span>PDF</button>
+        <button type="button" class="btn btn-outline-success" data-export="excel" data-export-target="#attendancesTableEl" data-title="Attendance Records" data-filename="Attendance_Records_{{ now()->toDateString() }}.xlsx" data-json-url="{{ route('admin.attendance.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-excel-line me-1"></span>Excel</button>
+      </div>
+    </div>
   </div>
   <div id="attendancesTable">
     @include('admin.attendance.partials.table')
@@ -153,4 +161,5 @@
     bindFilterEvents();
   })();
 </script>
+@vite(['resources/assets/js/report-export.js'])
 @endsection

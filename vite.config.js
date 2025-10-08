@@ -57,6 +57,8 @@ export default defineConfig({
         'resources/css/app.css',
         'resources/assets/css/demo.css',
         'resources/js/app.js',
+        // Ensure report-export.js is always included in the Vite manifest
+        'resources/assets/js/report-export.js',
         ...pageJsFiles,
         ...vendorJsFiles,
         ...LibsJsFiles,

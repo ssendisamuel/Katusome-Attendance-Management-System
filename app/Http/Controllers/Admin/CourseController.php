@@ -9,10 +9,46 @@ use Illuminate\Http\Request;
 
 class CourseController extends Controller
 {
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $courses = Course::with('program')->paginate(15);
-        return view('admin.courses.index', compact('courses'));
+        $query = Course::with('program');
+        if ($request->filled('program_id')) {
+            $query->where('program_id', $request->integer('program_id'));
+        }
+        if ($request->filled('search')) {
+            $term = '%' . trim($request->input('search')) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                  ->orWhere('code', 'like', $term)
+                  ->orWhereHas('program', fn($qq) => $qq->where('name', 'like', $term));
+            });
+        }
+        $courses = $query->orderBy('code')->paginate(15)->appends($request->query());
+
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            $rows = $query->orderBy('code')->get();
+            return response()->json([
+                'title' => 'Courses',
+                'columns' => ['Code', 'Name', 'Program'],
+                'rows' => $rows->map(function ($c) {
+                    return [$c->code, $c->name, optional($c->program)->name];
+                }),
+                'meta' => [
+                    'generated_at' => now()->format('d M Y H:i'),
+                    'filters' => [
+                        'program_id' => $request->input('program_id'),
+                        'search' => $request->input('search'),
+                    ],
+                    'user' => optional($request->user())->name,
+                ],
+                'summary' => [
+                    'total' => $rows->count(),
+                ],
+            ]);
+        }
+
+        $programs = Program::all();
+        return view('admin.courses.index', compact('courses', 'programs'));
     }
 
     public function create()

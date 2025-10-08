@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\LecturerController;
 use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\ScheduleSeriesController;
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\LecturerAttendanceController;
@@ -88,6 +89,31 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::post('series/generate-all', [ScheduleSeriesController::class, 'generateAll'])
         ->name('series.generate-all');
     Route::resource('attendance', AttendanceController::class)->only(['index', 'destroy']);
+
+    // Reports
+    Route::get('reports', [ReportsController::class, 'dashboard'])->name('reports.dashboard');
+    Route::get('reports/daily', [ReportsController::class, 'daily'])->name('reports.daily');
+    Route::get('reports/monthly', [ReportsController::class, 'monthly'])->name('reports.monthly');
+    Route::get('reports/individual', [ReportsController::class, 'individual'])->name('reports.individual');
+    // Student search suggestions for individual report
+    Route::get('reports/students/search', [StudentController::class, 'search'])
+        ->name('reports.students.search');
+    Route::get('reports/absenteeism', [ReportsController::class, 'absenteeism'])->name('reports.absenteeism');
+    Route::get('reports/devices', [ReportsController::class, 'devices'])->name('reports.devices');
+
+    // Export endpoints
+    Route::get('reports/daily.csv', [ReportsController::class, 'exportDailyCsv'])->name('reports.daily.csv');
+    Route::get('reports/monthly.csv', [ReportsController::class, 'exportMonthlyCsv'])->name('reports.monthly.csv');
+    Route::get('reports/individual.csv', [ReportsController::class, 'exportIndividualCsv'])->name('reports.individual.csv');
+    Route::get('reports/absenteeism.csv', [ReportsController::class, 'exportAbsenteeismCsv'])->name('reports.absenteeism.csv');
+    Route::get('reports/devices.csv', [ReportsController::class, 'exportDevicesCsv'])->name('reports.devices.csv');
+
+    // JSON export endpoints for full dataset
+    Route::get('reports/daily.json', [ReportsController::class, 'dailyJson'])->name('reports.daily.json');
+    Route::get('reports/monthly.json', [ReportsController::class, 'monthlyJson'])->name('reports.monthly.json');
+    Route::get('reports/individual.json', [ReportsController::class, 'individualJson'])->name('reports.individual.json');
+    Route::get('reports/absenteeism.json', [ReportsController::class, 'absenteeismJson'])->name('reports.absenteeism.json');
+    Route::get('reports/devices.json', [ReportsController::class, 'devicesJson'])->name('reports.devices.json');
 
     // Settings - Location
     Route::get('settings/location', [SettingsController::class, 'locationEdit'])->name('settings.location.edit');

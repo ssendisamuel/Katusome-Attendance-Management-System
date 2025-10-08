@@ -11,8 +11,37 @@
   <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 <div class="card">
+  <div class="card-body">
+    <form id="groupFilters" method="GET" action="{{ route('admin.groups.index') }}" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Search by name</label>
+        <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="e.g. Year 1" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Program</label>
+        <select name="program_id" class="form-select">
+          <option value="">All Programs</option>
+          @foreach($programs as $program)
+            <option value="{{ $program->id }}" @selected(request('program_id') == $program->id)>{{ $program->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end justify-content-end">
+        <a href="{{ route('admin.groups.index') }}" class="btn btn-outline-secondary me-2">Reset</a>
+        <button type="submit" class="btn btn-primary">Filter</button>
+      </div>
+    </form>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <div></div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-export="print" data-export-target="#groupsTableEl"><span class="icon-base ri ri-printer-line me-1"></span>Print</button>
+        <button type="button" class="btn btn-outline-danger" data-export="pdf" data-export-target="#groupsTableEl" data-title="Groups" data-filename="Groups.pdf" data-header="Katusome Institute" data-footer-left="Katusome • Groups" data-json-url="{{ route('admin.groups.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-pdf-line me-1"></span>PDF</button>
+        <button type="button" class="btn btn-outline-success" data-export="excel" data-export-target="#groupsTableEl" data-title="Groups" data-filename="Groups.xlsx" data-json-url="{{ route('admin.groups.index', array_merge(request()->query(), ['format' => 'json'])) }}"><span class="icon-base ri ri-file-excel-line me-1"></span>Excel</button>
+      </div>
+    </div>
+  </div>
   <div class="table-responsive">
-    <table class="table">
+    <table class="table" id="groupsTableEl">
       <thead>
         <tr>
           <th>Name</th>
@@ -45,6 +74,7 @@
 @endsection
 
 @section('page-script')
+@vite(['resources/assets/js/report-export.js'])
 <script>
   (function () {
     document.querySelectorAll('.js-delete-group').forEach(function (btn) {

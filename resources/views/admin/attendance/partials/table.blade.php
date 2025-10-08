@@ -1,5 +1,5 @@
 <div class="table-responsive">
-  <table class="table">
+  <table id="attendancesTableEl" class="table">
     <thead>
       <tr>
         <th>Student</th>

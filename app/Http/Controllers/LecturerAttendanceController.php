@@ -6,6 +6,7 @@ use App\Models\Schedule;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 // use Illuminate\Support\Facades\Auth; // replaced with auth() helper
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class LecturerAttendanceController extends Controller
@@ -52,7 +53,7 @@ class LecturerAttendanceController extends Controller
             ->whereHas('user')
             ->with('user')
             ->orderBy(
-                \DB::raw('(select name from users where users.id = students.user_id)'),
+                DB::raw('(select name from users where users.id = students.user_id)'),
                 'asc'
             )
             ->get();

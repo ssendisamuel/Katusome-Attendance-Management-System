@@ -56,6 +56,51 @@
       "slug": "admin.attendance.index"
     }
     ,
+    {
+      "url": "/admin/reports",
+      "name": "Reports",
+      "icon": "menu-icon icon-base ri ri-file-chart-line",
+      "slug": "admin.reports",
+      "submenu": [
+        {
+          "url": "/admin/reports",
+          "name": "Overview",
+          "icon": "menu-icon icon-base ri ri-dashboard-line",
+          "slug": "admin.reports.dashboard"
+        },
+        {
+          "url": "/admin/reports/daily",
+          "name": "Daily Attendance",
+          "icon": "menu-icon icon-base ri ri-calendar-check-line",
+          "slug": "admin.reports.daily"
+        },
+        {
+          "url": "/admin/reports/monthly",
+          "name": "Monthly Summary",
+          "icon": "menu-icon icon-base ri ri-bar-chart-2-line",
+          "slug": "admin.reports.monthly"
+        },
+        {
+          "url": "/admin/reports/individual",
+          "name": "Individual History",
+          "icon": "menu-icon icon-base ri ri-user-time-line",
+          "slug": "admin.reports.individual"
+        },
+        {
+          "url": "/admin/reports/absenteeism",
+          "name": "Absenteeism & Lateness",
+          "icon": "menu-icon icon-base ri ri-time-line",
+          "slug": "admin.reports.absenteeism"
+        },
+        {
+          "url": "/admin/reports/devices",
+          "name": "Device Logs",
+          "icon": "menu-icon icon-base ri ri-device-line",
+          "slug": "admin.reports.devices"
+        }
+      ]
+    }
+    ,
     { "menuHeader": "Settings" },
     {
       "url": "/admin/settings/location",
