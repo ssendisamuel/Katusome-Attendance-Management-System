@@ -6,6 +6,8 @@
 // To clear local storage, follow this guide: (https://www.leadshook.com/help/how-to-clear-local-storage-in-google-chrome-browser/).
 
 return [
+    // Application behavior flags
+    'mail_delivery' => env('MAIL_DELIVERY', 'sync'), // 'queue' or 'sync'
     'custom' => [
         'myLayout' => 'vertical', // Layout type: 'vertical' (default), 'horizontal'
         // 'primaryColor' => '#FF4646', // Set the primary color

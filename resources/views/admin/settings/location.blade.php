@@ -31,11 +31,11 @@
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label">Latitude</label>
-            <input type="number" step="0.000001" name="latitude" class="form-control" value="{{ old('latitude', $setting->latitude) }}" required />
+            <input type="number" step="any" name="latitude" class="form-control" value="{{ old('latitude', $setting->latitude) }}" required />
           </div>
           <div class="col-md-4">
             <label class="form-label">Longitude</label>
-            <input type="number" step="0.000001" name="longitude" class="form-control" value="{{ old('longitude', $setting->longitude) }}" required />
+            <input type="number" step="any" name="longitude" class="form-control" value="{{ old('longitude', $setting->longitude) }}" required />
           </div>
           <div class="col-md-4">
             <label class="form-label">Radius (meters)</label>

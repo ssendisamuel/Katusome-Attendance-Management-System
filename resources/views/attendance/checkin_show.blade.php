@@ -35,7 +35,6 @@
         </div>
         <div class="d-flex gap-2">
           <button id="captureBtn" class="btn btn-primary">Capture Attendance</button>
-          <button id="retakeBtn" class="btn btn-secondary d-none">Retake Photo</button>
         </div>
         <!-- Fallback inline preview when modal is unavailable -->
         <div id="previewFallback" class="border rounded p-3 d-none mt-3">
@@ -44,6 +43,7 @@
             <div>Captured at: <span id="capturedAtFallback">—</span></div>
             <div>Captured location: <span id="capturedLocFallback">Detecting…</span></div>
             <div>Distance from MUBS: <span id="capturedDistFallback">—</span></div>
+            <div>Accuracy: <span id="capturedAccFallback">—</span></div>
           </div>
           <div class="d-flex gap-2">
             <button id="confirmBtnFallback" class="btn btn-success">Confirm Attendance</button>
@@ -66,6 +66,7 @@
                 <div>Captured at: <span id="capturedAt">—</span></div>
                 <div>Captured location: <span id="capturedLoc">Detecting…</span></div>
                 <div>Distance from MUBS: <span id="capturedDist">—</span></div>
+                <div>Accuracy: <span id="capturedAcc">—</span></div>
               </div>
             </div>
             <div class="modal-footer">
@@ -81,6 +82,8 @@
       <input type="hidden" name="schedule_id" value="{{ $schedule->id }}" />
       <input type="hidden" name="lat" id="latInput" />
       <input type="hidden" name="lng" id="lngInput" />
+      <input type="hidden" name="accuracy" id="accuracyInput" />
+      <input type="hidden" name="distance_meters" id="distanceInput" />
       <input type="file" name="selfie" id="selfieInput" accept="image/*" />
     </form>
   </div>
@@ -118,6 +121,7 @@ const previewImgFallback = document.getElementById('previewImgFallback');
 const capturedAtFallback = document.getElementById('capturedAtFallback');
 const capturedLocFallback = document.getElementById('capturedLocFallback');
 const capturedDistFallback = document.getElementById('capturedDistFallback');
+const capturedAccFallback = document.getElementById('capturedAccFallback');
 const confirmBtnFallback = document.getElementById('confirmBtnFallback');
 const retakeBtnFallback = document.getElementById('retakeBtnFallback');
 const closeFallbackBtn = document.getElementById('closeFallbackBtn');
@@ -125,11 +129,104 @@ const capturedAt = document.getElementById('capturedAt');
 const capturedLoc = document.getElementById('capturedLoc');
 const confirmBtn = document.getElementById('confirmBtn');
 const capturedDist = document.getElementById('capturedDist');
+const capturedAcc = document.getElementById('capturedAcc');
 const backBtn = document.getElementById('backBtn');
 const latInput = document.getElementById('latInput');
 const lngInput = document.getElementById('lngInput');
+const accuracyInput = document.getElementById('accuracyInput');
+const distanceInput = document.getElementById('distanceInput');
 const selfieInput = document.getElementById('selfieInput');
 const submitForm = document.getElementById('submitForm');
+const pageDist = document.getElementById('pageDist');
+const pageLocStatus = document.getElementById('pageLocStatus');
+const pageAcc = document.getElementById('pageAcc');
+
+// Minimal inline modal fallback when SweetAlert is unavailable
+function showInlineModal(title, text) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:9999;">
+      <div style="background:#fff;padding:16px 20px;border-radius:8px;max-width:420px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        <h5 style="margin:0 0 8px;font-weight:600;">${title}</h5>
+        <p style="margin:0 0 12px;">${text}</p>
+        <button id="inlineModalOk" class="btn btn-primary">OK</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const ok = document.getElementById('inlineModalOk');
+  ok?.addEventListener('click', () => wrap.remove(), { once: true });
+}
+
+// Gating for confirm action based on location
+let locationReady = false;
+let withinRadius = false;
+let outsideNoticeShown = false;
+let outsideReminderTimer = null;
+const OUTSIDE_REMINDER_MS = 15000; // gentle reminder every 15s
+
+function startOutsideReminder(){
+  if (outsideReminderTimer) return;
+  outsideReminderTimer = setInterval(() => {
+    const disabled = !locationReady || !withinRadius;
+    // Stop reminding once user is within bounds or location is missing
+    if (!disabled) { stopOutsideReminder(); return; }
+    const baseMsg = 'Move within MUBS premises to record attendance.';
+    const distText = (pageDist && pageDist.textContent && pageDist.textContent !== '—')
+      ? pageDist.textContent
+      : (capturedDist && capturedDist.textContent && capturedDist.textContent !== '—')
+        ? capturedDist.textContent
+        : '';
+    const text = distText ? `Outside MUBS premises (${distText}). ${baseMsg}` : baseMsg;
+    if (Toast) {
+      Toast.fire({ icon: 'info', title: text });
+    } else if (window.Swal && !Swal.isVisible()) {
+      Swal.fire({ icon: 'info', title: 'Outside allowed area', text, customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false });
+    }
+  }, OUTSIDE_REMINDER_MS);
+}
+
+function stopOutsideReminder(){
+  if (outsideReminderTimer) {
+    clearInterval(outsideReminderTimer);
+    outsideReminderTimer = null;
+  }
+}
+function updateConfirmState(){
+  const disabled = !locationReady || !withinRadius;
+  if (confirmBtn) {
+    confirmBtn.disabled = disabled;
+    confirmBtn.classList.toggle('disabled', disabled);
+  }
+  if (confirmBtnFallback) {
+    confirmBtnFallback.disabled = disabled;
+    confirmBtnFallback.classList.toggle('disabled', disabled);
+  }
+  // Auto-notify when outside the allowed radius even if button is disabled
+  if (locationReady && !withinRadius && !outsideNoticeShown) {
+    const baseMsg = 'Attendance can only be recorded from within MUBS premises.';
+    // Try to include current distance in the message if available
+    const distText = (pageDist && pageDist.textContent && pageDist.textContent !== '—')
+      ? pageDist.textContent
+      : (capturedDist && capturedDist.textContent && capturedDist.textContent !== '—')
+        ? capturedDist.textContent
+        : '';
+    const msg = distText ? `${baseMsg} Outside MUBS premises (${distText}).` : baseMsg;
+    if (window.Swal) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Outside allowed area',
+        text: msg,
+        customClass: { confirmButton: 'btn btn-primary' },
+        buttonsStyling: false
+      });
+    } else {
+      showInlineModal('Outside allowed area', msg);
+    }
+    outsideNoticeShown = true;
+  }
+  // Start/stop gentle periodic reminders while outside bounds
+  if (locationReady && !withinRadius) startOutsideReminder(); else stopOutsideReminder();
+}
 
 // Toast helper from global (defined in main.js), fallback if missing
 const Toast = window.Toast || (window.Swal ? Swal.mixin({
@@ -152,6 +249,56 @@ function haversine(lat1, lon1, lat2, lon2){
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
+}
+
+// Acquire a precise location fix by sampling positions until desired accuracy or timeout
+function getAccuratePosition(desiredAccuracy = 100, maxWaitMs = 15000) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation unsupported'));
+      return;
+    }
+    let bestPos = null;
+    let settled = false;
+    const opts = { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 };
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        bestPos = pos;
+        const acc = pos?.coords?.accuracy ?? Infinity;
+        if (typeof acc === 'number' && isFinite(acc)) {
+          // Update inline status while sampling
+          if (pageAcc) pageAcc.textContent = `${Math.round(acc)}m`;
+          if (pageLocStatus) pageLocStatus.textContent = acc <= desiredAccuracy
+            ? 'Location acquired.'
+            : `Getting a precise location… (${Math.round(acc)}m)`;
+        }
+        if (!settled && acc <= desiredAccuracy) {
+          settled = true;
+          navigator.geolocation.clearWatch(watchId);
+          resolve({ pos, timedOut: false });
+        }
+      },
+      (err) => {
+        if (!settled) {
+          settled = true;
+          navigator.geolocation.clearWatch(watchId);
+          reject(err);
+        }
+      },
+      opts
+    );
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        navigator.geolocation.clearWatch(watchId);
+        if (bestPos) {
+          resolve({ pos: bestPos, timedOut: true });
+        } else {
+          reject(new Error('Timed out'));
+        }
+      }
+    }, maxWaitMs);
+  });
 }
 
 async function initCamera() {
@@ -178,12 +325,69 @@ async function initCamera() {
           buttonsStyling: false
         });
       } else {
-        alert('Camera permission denied or unavailable.');
+        showInlineModal('Camera not available', 'Please allow camera access or try another device/browser.');
       }
     }
   }
 }
-initCamera();
+// Prompt for permissions on load, then initialize camera and location.
+function promptPermissionsAndInit(){
+  if (window.Swal) {
+    Swal.fire({
+      icon: 'info',
+      title: 'Permissions Required',
+      html: 'Please allow <strong>camera</strong> and <strong>location</strong> access to record attendance.<br/>On iOS Safari, ensure the site has camera access in Settings.',
+      confirmButtonText: 'OK, proceed',
+      customClass: { confirmButton: 'btn btn-primary' },
+      buttonsStyling: false
+    }).then(() => {
+      // Initialize camera using this user gesture to satisfy Safari
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        initCamera();
+      } else {
+        if (window.Swal) {
+          Swal.fire({ icon: 'error', title: 'Camera unsupported', text: 'Your browser does not support camera access.', customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false });
+        }
+      }
+      // Also request location immediately
+      getLocation();
+    });
+  } else {
+    // If SweetAlert isn't available yet, wait briefly then try again
+    setTimeout(() => {
+      if (window.Swal) {
+        promptPermissionsAndInit();
+        return;
+      }
+      // As an ultimate fallback, use a minimal inline modal UI instead of native alert
+      const fallback = document.createElement('div');
+      fallback.innerHTML = `
+        <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:9999;">
+          <div style="background:#fff;padding:16px 20px;border-radius:8px;max-width:360px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+            <h5 style="margin:0 0 8px;font-weight:600;">Permissions Required</h5>
+            <p style="margin:0 0 12px;">Please allow <strong>camera</strong> and <strong>location</strong> access to record attendance.</p>
+            <button id="permFallbackOk" class="btn btn-primary">OK, proceed</button>
+          </div>
+        </div>`;
+      document.body.appendChild(fallback);
+      const okBtn = document.getElementById('permFallbackOk');
+      okBtn?.addEventListener('click', () => {
+        fallback.remove();
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) initCamera();
+        getLocation();
+      });
+    }, 150);
+  }
+}
+// Ensure DOM ready and SweetAlert loaded before prompting
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    // Defer slightly to allow Vite scripts to attach
+    setTimeout(() => promptPermissionsAndInit(), 100);
+  });
+} else {
+  setTimeout(() => promptPermissionsAndInit(), 100);
+}
 
 function dataURLtoFile(dataUrl, filename) {
   const arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]);
@@ -211,16 +415,31 @@ function captureImage() {
   });
 }
 
-function getLocation() {
+async function getLocation() {
   capturedLoc.textContent = 'Detecting…';
-  if (!navigator.geolocation) { capturedLoc.textContent = 'Unavailable'; return; }
-  navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude, longitude } = pos.coords;
+  if (capturedAcc) capturedAcc.textContent = '—';
+  if (capturedAccFallback) capturedAccFallback.textContent = '—';
+  if (pageAcc) pageAcc.textContent = '—';
+  if (pageLocStatus) { pageLocStatus.textContent = 'Getting a precise location…'; pageLocStatus.classList.remove('text-danger'); }
+  // Reset outside notice so we can notify again for a new fix
+  outsideNoticeShown = false;
+  stopOutsideReminder();
+  if (!navigator.geolocation) {
+    capturedLoc.textContent = 'Unavailable';
+    if (pageLocStatus) { pageLocStatus.textContent = 'Geolocation unsupported on this device.'; pageLocStatus.classList.add('text-danger'); }
+    locationReady = false; withinRadius = false; updateConfirmState();
+    return;
+  }
+  try {
+    const { pos, timedOut } = await getAccuratePosition(100, 15000);
+    const { latitude, longitude, accuracy } = pos.coords;
     latInput.value = latitude; lngInput.value = longitude;
+    if (accuracyInput) accuracyInput.value = typeof accuracy === 'number' ? Math.round(accuracy) : '';
     capturedLoc.textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     if (capturedLocFallback) capturedLocFallback.textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     const dist = haversine(campus.lat, campus.lng, latitude, longitude);
     const distRounded = Math.round(dist);
+    if (distanceInput) distanceInput.value = distRounded;
     capturedDist.textContent = `${distRounded}m`;
     if (capturedDistFallback) capturedDistFallback.textContent = `${distRounded}m`;
     // Color distance using theme colors: green within radius, red outside
@@ -230,8 +449,32 @@ function getLocation() {
       capturedDistFallback.classList.remove('text-success', 'text-danger');
       capturedDistFallback.classList.add(dist > radiusMeters ? 'text-danger' : 'text-success');
     }
-    console.log('[Check-In Show] Located', { latitude, longitude, dist });
-  }, err => {
+    if (pageDist) {
+      pageDist.textContent = `${distRounded}m`;
+      pageDist.classList.remove('text-success', 'text-danger');
+      pageDist.classList.add(dist > radiusMeters ? 'text-danger' : 'text-success');
+    }
+    if (capturedAcc) capturedAcc.textContent = (typeof accuracy === 'number') ? `${Math.round(accuracy)}m` : '—';
+    if (capturedAccFallback) capturedAccFallback.textContent = (typeof accuracy === 'number') ? `${Math.round(accuracy)}m` : '—';
+    if (pageAcc) pageAcc.textContent = (typeof accuracy === 'number') ? `${Math.round(accuracy)}m` : '—';
+    if (pageLocStatus) {
+      const usingCoarse = timedOut && typeof accuracy === 'number' && accuracy > 100;
+      pageLocStatus.textContent = usingCoarse ? `Using less precise location (~${Math.round(accuracy)}m)` : 'Location acquired.';
+      // If outside radius, reflect that immediately in status for clarity
+      if (dist > radiusMeters) {
+        pageLocStatus.textContent = `Outside MUBS premises (${distRounded}m).`;
+        pageLocStatus.classList.add('text-danger');
+      } else {
+        pageLocStatus.classList.remove('text-danger');
+      }
+    }
+    // Gating: wait for good accuracy unless we timed out
+    const goodAccuracy = typeof accuracy === 'number' && accuracy <= 100;
+    locationReady = goodAccuracy || timedOut;
+    withinRadius = dist <= radiusMeters;
+    updateConfirmState();
+    console.log('[Check-In Show] Located', { latitude, longitude, dist, accuracy, timedOut });
+  } catch (err) {
     capturedLoc.textContent = 'Unavailable';
     capturedDist.textContent = '—';
     capturedDist.classList.remove('text-success', 'text-danger');
@@ -240,7 +483,11 @@ function getLocation() {
       capturedDistFallback.textContent = '—';
       capturedDistFallback.classList.remove('text-success', 'text-danger');
     }
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    if (pageAcc) pageAcc.textContent = '—';
+    if (pageDist) { pageDist.textContent = '—'; pageDist.classList.remove('text-success', 'text-danger'); }
+    if (pageLocStatus) { pageLocStatus.textContent = 'Location permission denied or unavailable.'; pageLocStatus.classList.add('text-danger'); }
+    locationReady = false; withinRadius = false; updateConfirmState();
+  }
 }
 
 captureBtn.addEventListener('click', (e) => {
@@ -253,33 +500,35 @@ captureBtn.addEventListener('click', (e) => {
   // Show modal with preview
   if (previewModal) { previewModal.show(); }
   else if (previewFallback) { previewFallback.classList.remove('d-none'); }
-  retakeBtn.classList.remove('d-none');
+  if (retakeBtn) retakeBtn.classList.remove('d-none');
   // Hide capture button after first capture to avoid duplicate actions
   captureBtn.classList.add('d-none');
   // Hide webcam while previewing the captured photo
   video.classList.add('d-none');
 });
 
-retakeBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  // Switch back to webcam view and allow a new capture
-  if (previewModal) { previewModal.hide(); }
-  if (previewFallback) { previewFallback.classList.add('d-none'); }
-  video.classList.remove('d-none');
-  captureBtn.classList.remove('d-none');
-  retakeBtn.classList.add('d-none');
-});
+if (retakeBtn) {
+  retakeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    // Switch back to webcam view and allow a new capture
+    if (previewModal) { previewModal.hide(); }
+    if (previewFallback) { previewFallback.classList.add('d-none'); }
+    video.classList.remove('d-none');
+    captureBtn.classList.remove('d-none');
+    retakeBtn.classList.add('d-none');
+  });
+}
 
 // Retake from modal closes modal and refreshes capture
 if (retakeBtnModal) {
   retakeBtnModal.addEventListener('click', (e) => {
     e.preventDefault();
     // Close modal and switch to webcam for a fresh capture
-    if (previewModal) { previewModal.hide(); }
-    if (previewFallback) { previewFallback.classList.add('d-none'); }
-    video.classList.remove('d-none');
-    captureBtn.classList.remove('d-none');
-    retakeBtn.classList.add('d-none');
+  if (previewModal) { previewModal.hide(); }
+  if (previewFallback) { previewFallback.classList.add('d-none'); }
+  video.classList.remove('d-none');
+  captureBtn.classList.remove('d-none');
+  if (retakeBtn) retakeBtn.classList.add('d-none');
   });
 }
 
@@ -291,7 +540,7 @@ if (closeFallbackBtn && previewFallback) {
     // Return to webcam so the student can try again or cancel
     video.classList.remove('d-none');
     captureBtn.classList.remove('d-none');
-    retakeBtn.classList.add('d-none');
+    if (retakeBtn) retakeBtn.classList.add('d-none');
   });
 }
 
@@ -303,12 +552,20 @@ if (retakeBtnFallback) {
     if (previewFallback) { previewFallback.classList.add('d-none'); }
     video.classList.remove('d-none');
     captureBtn.classList.remove('d-none');
-    retakeBtn.classList.add('d-none');
+    if (retakeBtn) retakeBtn.classList.add('d-none');
   });
 }
 
 confirmBtn.addEventListener('click', (e) => {
   e.preventDefault();
+  // Guard: require location and within radius
+  if (confirmBtn.disabled) {
+    const msg = 'Please enable location and ensure you are within MUBS radius to confirm attendance.';
+    if (window.Swal) {
+      Swal.fire({ icon: 'info', title: 'Enable location', text: msg, customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false });
+    } else { showInlineModal('Enable location', msg); }
+    return;
+  }
   const lt = parseFloat(latInput.value), ln = parseFloat(lngInput.value);
   if(isFinite(lt) && isFinite(ln)){
     const dist = haversine(campus.lat, campus.lng, lt, ln);
@@ -324,7 +581,7 @@ confirmBtn.addEventListener('click', (e) => {
           buttonsStyling: false
         });
       } else {
-        alert(`Attendance can only be recorded from within MUBS premises.\nOutside MUBS premises (${distRounded}m).`);
+        showInlineModal('Outside allowed area', `Attendance can only be recorded from within MUBS premises. Outside MUBS premises (${distRounded}m).`);
       }
       return;
     }
@@ -342,13 +599,13 @@ confirmBtn.addEventListener('click', (e) => {
         cancelButton: 'btn btn-outline-secondary'
       },
       buttonsStyling: false
-    }).then(result => {
+    }).then(async result => {
       if (result.isConfirmed) {
         // Disable button and show inline spinner while posting
         const originalHtml = confirmBtn.innerHTML;
         confirmBtn.disabled = true;
         confirmBtn.classList.add('disabled');
-        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Submitting...';
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Confirming attendance…';
 
         const originalAction = submitForm.action;
         const formData = new FormData(submitForm);
@@ -371,29 +628,22 @@ confirmBtn.addEventListener('click', (e) => {
 
           if (response.redirected) {
             const title = (data && data.message) ? data.message : 'Attendance recorded!';
-            if (Toast) {
-              Toast.fire({ icon: 'success', title }).then(() => {
-                if (previewModal) previewModal.hide();
-                if (previewFallback) previewFallback.classList.add('d-none');
-                captureBtn.classList.remove('d-none');
-                retakeBtn.classList.add('d-none');
-                window.location.href = response.url;
-              });
-            } else {
-              if (previewModal) previewModal.hide();
-              if (previewFallback) previewFallback.classList.add('d-none');
-              captureBtn.classList.remove('d-none');
-              retakeBtn.classList.add('d-none');
-              window.location.href = response.url;
-            }
+            if (Toast) { await Toast.fire({ icon: 'success', title }); }
+            else if (window.Swal) { await Swal.fire({ icon: 'success', title, customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false }); }
+            if (previewModal) previewModal.hide();
+            if (previewFallback) previewFallback.classList.add('d-none');
+            if (captureBtn) captureBtn.classList.remove('d-none');
+            if (typeof retakeBtn !== 'undefined' && retakeBtn) retakeBtn.classList.add('d-none');
+            window.location.href = response.url;
           } else if (response.ok) {
             const redirectUrl = (data && data.redirect) ? data.redirect : (data && data.url) ? data.url : null;
             const title = (data && data.message) ? data.message : 'Attendance recorded!';
-            if (Toast) Toast.fire({ icon: 'success', title });
+            if (Toast) { await Toast.fire({ icon: 'success', title }); }
+            else if (window.Swal) { await Swal.fire({ icon: 'success', title, customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false }); }
             if (previewModal) previewModal.hide();
             if (previewFallback) previewFallback.classList.add('d-none');
-            captureBtn.classList.remove('d-none');
-            retakeBtn.classList.add('d-none');
+            if (captureBtn) captureBtn.classList.remove('d-none');
+            if (typeof retakeBtn !== 'undefined' && retakeBtn) retakeBtn.classList.add('d-none');
             if (redirectUrl) {
               window.location.href = redirectUrl;
             }

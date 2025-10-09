@@ -3,26 +3,16 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use App\Models\User;
 
-class WelcomeUserMail extends Mailable implements ShouldQueue
+class WelcomeUserMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /**
-     * Number of times the job may be attempted.
-     */
-    public int $tries = 5;
-
-    /**
-     * Backoff timing between retries in seconds.
-     */
-    public $backoff = [60, 120, 300, 600];
 
     public User $user;
     public string $initialPassword;
@@ -75,4 +65,6 @@ class WelcomeUserMail extends Mailable implements ShouldQueue
     {
         return [];
     }
+
+    // Queued mailable for async delivery
 }

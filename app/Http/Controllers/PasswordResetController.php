@@ -20,10 +20,19 @@ class PasswordResetController extends Controller
     {
         $request->validate(['email' => ['required','email']]);
 
-        $status = Password::sendResetLink($request->only('email'));
+        $status = Password::broker()->sendResetLink(
+            $request->only('email'),
+            function ($user, $token) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\ResetPasswordMail($user, $token));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Sending password reset mail failed', ['email' => $user->email, 'error' => $e->getMessage()]);
+                }
+            }
+        );
 
         return $status === Password::RESET_LINK_SENT
-            ? back()->with(['status' => __($status)])
+            ? back()->with('success', 'Password reset email sent')
             : back()->withErrors(['email' => __($status)]);
     }
 

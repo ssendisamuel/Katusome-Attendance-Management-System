@@ -13,7 +13,7 @@ use Carbon\Carbon;
 class DispatchTestAttendanceMail extends Command
 {
     protected $signature = 'mail:test-attendance {studentId} {scheduleId}';
-    protected $description = 'Dispatch a queued attendance confirmation email for a given student and schedule';
+    protected $description = 'Send an attendance confirmation email immediately for a given student and schedule';
 
     public function handle(): int
     {
@@ -31,8 +31,8 @@ class DispatchTestAttendanceMail extends Command
             'marked_at' => Carbon::now(),
         ]);
 
-        Mail::to(optional($student->user)->email)->queue(new AttendanceConfirmationMail($student, $schedule, $attendance));
-        $this->info('Queued attendance confirmation mail.');
+        Mail::mailer('smtp')->to(optional($student->user)->email)->send(new AttendanceConfirmationMail($student, $schedule, $attendance));
+        $this->info('Sent attendance confirmation mail immediately via SMTP.');
         return self::SUCCESS;
     }
 }

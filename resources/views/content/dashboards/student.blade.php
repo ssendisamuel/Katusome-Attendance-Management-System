@@ -9,9 +9,9 @@ $configData = Helper::appClasses();
 @section('content')
 <div class="row gy-6">
   @if(session('success'))
-    <div class="col-12">
-      <div class="alert alert-success">{{ session('success') }}</div>
-    </div>
+    <script>
+      window.Toast && window.Toast.fire({ icon: 'success', title: @json(session('success')) });
+    </script>
   @endif
   <!-- Top stats and donut chart -->
   <div class="col-12">

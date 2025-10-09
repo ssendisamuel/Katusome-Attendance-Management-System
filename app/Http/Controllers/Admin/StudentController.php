@@ -125,7 +125,12 @@ class StudentController extends Controller
         $token = Password::broker()->createToken($user);
         $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
         $loginUrl = url(route('login', [], false));
-        Mail::to($user->email)->queue(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
+        try {
+            \Illuminate\Support\Facades\Mail::mailer('smtp')->to($user->email)->send(new \App\Mail\WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
+            \Illuminate\Support\Facades\Log::info('Immediate welcome mail sent to new student via SMTP', ['email' => $user->email]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Immediate welcome mail failed for new student: ' . $user->email . ' error: ' . $e->getMessage());
+        }
 
         // Create student linked to canonical user
         Student::create([
@@ -140,7 +145,7 @@ class StudentController extends Controller
         ]);
         return redirect()->route('admin.students.index')
             ->with('success', 'Student created')
-            ->with('info', 'Welcome emails are being sent in the background');
+            ->with('info', 'Welcome email sent immediately via SMTP');
     }
 
     public function edit(Student $student)
@@ -180,7 +185,12 @@ class StudentController extends Controller
             $token = Password::broker()->createToken($user);
             $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
             $loginUrl = url(route('login', [], false));
-            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+            try {
+                \Illuminate\Support\Facades\Mail::mailer('smtp')->to($user->email)->send(new \App\Mail\WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+            \Illuminate\Support\Facades\Log::info('Immediate welcome mail sent when creating missing student user via SMTP', ['email' => $user->email]);
+            } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Immediate welcome mail failed for created user: ' . $user->email . ' error: ' . $e->getMessage());
+            }
             $student->user()->associate($user);
         } else {
             $student->user->name = $data['name'];
@@ -206,7 +216,7 @@ class StudentController extends Controller
         ])->save();
         return redirect()->route('admin.students.index')
             ->with('success', 'Student updated')
-            ->with('info', 'Welcome emails are being sent in the background');
+            ->with('info', 'Welcome email sent immediately via SMTP');
     }
 
     public function destroy(Student $student)
@@ -356,9 +366,10 @@ class StudentController extends Controller
                         $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
                         $loginUrl = url(route('login', [], false));
                         try {
-                            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                            \Illuminate\Support\Facades\Mail::mailer('smtp')->to($user->email)->send(new \App\Mail\WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                \Illuminate\Support\Facades\Log::info('Immediate welcome mail sent during import for existing student via SMTP', ['email' => $user->email]);
                         } catch (\Throwable $e) {
-                            $errors[] = "Mail queue failure for {$email}: " . $e->getMessage();
+                            $errors[] = "Immediate mail send failure for {$email}: " . $e->getMessage();
                         }
                     }
                     $existing->user()->associate($user);
@@ -384,9 +395,10 @@ class StudentController extends Controller
                     $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
                     $loginUrl = url(route('login', [], false));
                     try {
-                        Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                        \Illuminate\Support\Facades\Mail::mailer('smtp')->to($user->email)->send(new \App\Mail\WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                \Illuminate\Support\Facades\Log::info('Immediate welcome mail sent during import for new student via SMTP', ['email' => $user->email]);
                     } catch (\Throwable $e) {
-                        $errors[] = "Mail queue failure for {$email}: " . $e->getMessage();
+                        $errors[] = "Immediate mail send failure for {$email}: " . $e->getMessage();
                     }
                 }
                 Student::create(array_merge($studentAttrs, [
@@ -405,6 +417,6 @@ class StudentController extends Controller
 
         return redirect()->route('admin.students.index')
             ->with('success', $message)
-            ->with('info', 'Welcome emails are being sent in the background');
+            ->with('info', 'Welcome email sent immediately via SMTP');
     }
 }

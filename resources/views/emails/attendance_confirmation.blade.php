@@ -9,13 +9,13 @@ Your attendance has been recorded successfully.
 - Time: **{{ optional($attendance->marked_at)->format('Y-m-d h:i A') }}**
 - Status: **{{ ucfirst($attendance->status) }}**
 
-@isset($selfieUrl)
+@if(isset($selfieUrl))
 @component('mail::panel')
 Selfie captured at check-in:
 
 <img src="{{ $selfieUrl }}" alt="Attendance selfie" style="max-width: 280px; border-radius: 8px;" />
 @endcomponent
-@endisset
+@endif
 
 @component('mail::button', ['url' => $checkinUrl])
 View Attendance Summary

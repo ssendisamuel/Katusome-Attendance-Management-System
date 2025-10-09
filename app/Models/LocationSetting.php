@@ -17,6 +17,11 @@ class LocationSetting extends Model
         'radius_meters',
     ];
 
+    protected $casts = [
+        'latitude' => 'float',
+        'longitude' => 'float',
+    ];
+
     // Retrieve the single current location setting, creating a default if missing
     public static function current(): self
     {

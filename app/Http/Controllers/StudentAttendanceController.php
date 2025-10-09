@@ -6,6 +6,8 @@ use App\Models\Attendance;
 use App\Models\Schedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Mail\AttendanceConfirmationMail;
 use Illuminate\Http\Request;
 // use Illuminate\Support\Facades\Auth; // replaced with auth() helper
@@ -116,6 +118,8 @@ class StudentAttendanceController extends Controller
             'schedule_id' => ['required', 'integer', 'exists:schedules,id'],
             'lat' => ['required', 'numeric'],
             'lng' => ['required', 'numeric'],
+            'accuracy' => ['nullable', 'numeric'],
+            'distance_meters' => ['nullable', 'integer'],
             'selfie' => ['nullable', 'image', 'max:5120'], // Webcam capture as file blob
         ]);
 
@@ -165,39 +169,63 @@ class StudentAttendanceController extends Controller
                 'marked_at' => $now,
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
+                'accuracy' => $data['accuracy'] ?? null,
+                'distance_meters' => isset($data['distance_meters'])
+                    ? (int) $data['distance_meters']
+                    : (int) round($distanceMeters),
                 'selfie_path' => $path,
             ]
         );
 
-        // Queue a confirmation email (high volume-friendly)
-        $shouldNotify = !$prior
-            || optional($prior->marked_at)->ne($now)
-            || $prior->status !== $status
-            || $prior->selfie_path !== $path;
-        if ($shouldNotify && optional($student->user)->email) {
-            Mail::to($student->user->email)->queue(
-                new AttendanceConfirmationMail($student, $schedule, $attendance)
-            );
+        // Send confirmation email on every check-in attempt and record status for UI polling
+        $emailSent = false;
+        if (optional($student->user)->email) {
+            try {
+                // Force SMTP mailer to avoid local sendmail issues
+                Mail::mailer('smtp')->to($student->user->email)->send(new AttendanceConfirmationMail($student, $schedule, $attendance));
+                $emailSent = true;
+                Log::info('Attendance confirmation mail sent', [
+                    'student_id' => $student->id,
+                    'schedule_id' => $schedule->id,
+                    'attendance_id' => $attendance->id,
+                ]);
+                Cache::put('mail:attendance:' . $attendance->id, 'sent', now()->addMinutes(30));
+            } catch (\Throwable $e) {
+                Log::warning('Sending attendance mail failed', [
+                    'error' => $e->getMessage(),
+                    'student_id' => $student->id,
+                    'schedule_id' => $schedule->id,
+                    'attendance_id' => $attendance->id,
+                ]);
+                Cache::put('mail:attendance:' . $attendance->id, 'failed', now()->addMinutes(30));
+            }
         }
 
         $courseName = optional($schedule->course)->name;
         $successMsg = 'Attendance recorded successfully at ' . $now->format('h:i A')
             . ($courseName ? (' for ' . $courseName) : '') . '.';
 
+        $infoMsg = $emailSent ? 'Confirmation email sent' : 'Confirmation email could not be sent';
+
         // If this is an AJAX request (fetch/XHR), return JSON so the client
         // can show a toast and then redirect without consuming the flash.
         if ($request->expectsJson() || $request->ajax()) {
             // Persist a flash for the next full page load (dashboard)
             session()->flash('success', $successMsg);
+            session()->flash('info', $infoMsg);
             return response()->json([
                 'message' => $successMsg,
                 'redirect' => route('student.dashboard'),
                 'attendance_id' => $attendance->id,
+                'email_status' => $emailSent ? 'sent' : 'failed',
+                'info' => $infoMsg,
             ]);
         }
 
         // Default: redirect to dashboard with success flash for full-page post
-        return redirect()->route('student.dashboard')->with('success', $successMsg);
+        return redirect()->route('student.dashboard')
+            ->with('success', $successMsg)
+            ->with('info', $infoMsg);
     }
 
     private function haversineDistanceMeters($lat1, $lon1, $lat2, $lon2)

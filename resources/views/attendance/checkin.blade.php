@@ -45,7 +45,10 @@
         <small class="text-muted d-block">Distance from MUBS: <span id="locDist">—</span></small>
       </div>
       <div class="col-12 d-flex justify-content-end">
-        <button type="submit" class="btn btn-primary">Mark Attendance</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+          <span class="btn-text">Mark Attendance</span>
+        </button>
       </div>
     </form>
   </div>
@@ -115,6 +118,9 @@
 
     if(form){
       form.addEventListener('submit', function(e){
+        const submitBtn = document.getElementById('submitBtn');
+        const spinner = submitBtn ? submitBtn.querySelector('.spinner-border') : null;
+        const text = submitBtn ? submitBtn.querySelector('.btn-text') : null;
         const lt = parseFloat(lat.value), ln = parseFloat(lng.value);
         if(!isFinite(lt) || !isFinite(ln)) return; // let backend validate
         const dist = haversine(campus.lat, campus.lng, lt, ln);
@@ -127,7 +133,64 @@
           status.textContent = 'Attendance can only be recorded from within MUBS premises. Outside MUBS premises (' + Math.round(dist) + 'm).';
           status.classList.remove('text-success');
           status.classList.add('text-danger');
+          return;
         }
+
+        // Enhance UX: disable submit with spinner and use fetch for toast
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.classList.add('disabled');
+          if (spinner) spinner.classList.remove('d-none');
+        }
+
+        // Use Fetch to submit and show toast, then redirect
+        e.preventDefault();
+        const formData = new FormData(form);
+        fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        }).then(async (response) => {
+          const contentType = response.headers.get('content-type') || '';
+          const isJson = contentType.includes('application/json');
+          const data = isJson ? (await response.json().catch(() => null)) : null;
+          if (response.redirected) {
+            const title = (data && data.message) ? data.message : 'Attendance recorded!';
+            if (window.Toast) {
+              window.Toast.fire({ icon: 'success', title }).then(() => {
+                window.location.href = response.url;
+              });
+            } else {
+              window.location.href = response.url;
+            }
+            return;
+          }
+          if (response.ok) {
+            const title = (data && data.message) ? data.message : 'Attendance recorded!';
+            const redirectUrl = (data && (data.redirect || data.url)) ? (data.redirect || data.url) : null;
+            if (window.Toast) window.Toast.fire({ icon: 'success', title });
+            if (redirectUrl) window.location.href = redirectUrl;
+            return;
+          }
+          const text = data ? JSON.stringify(data) : await response.text();
+          throw new Error(text || 'Submission failed');
+        }).catch((error) => {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'Submission failed',
+              text: 'There was an error submitting your attendance. Please try again.',
+              customClass: { confirmButton: 'btn btn-primary' },
+              buttonsStyling: false
+            });
+          }
+        }).finally(() => {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('disabled');
+            if (spinner) spinner.classList.add('d-none');
+          }
+        });
       });
     }
   })();

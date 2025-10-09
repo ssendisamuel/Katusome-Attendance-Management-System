@@ -30,10 +30,15 @@
           <td>{{ $attendance->lat && $attendance->lng ? $attendance->lat . ', ' . $attendance->lng : '—' }}</td>
           <td>
             @if($attendance->selfie_path)
-              @php($photoUrl = \Illuminate\Support\Facades\Storage::url($attendance->selfie_path))
-              <a href="#" data-photo-url="{{ $photoUrl }}" title="View photo">
-                <img src="{{ $photoUrl }}" alt="Attendance photo" class="img-thumbnail" loading="lazy" style="height: 48px; width: auto;" />
-              </a>
+              @php($exists = \Illuminate\Support\Facades\Storage::disk('public')->exists($attendance->selfie_path))
+              @if($exists)
+                @php($photoUrl = \Illuminate\Support\Facades\Storage::url($attendance->selfie_path))
+                <a href="#" data-photo-url="{{ $photoUrl }}" title="View photo">
+                  <img src="{{ $photoUrl }}" alt="Attendance photo" class="img-thumbnail" loading="lazy" style="height: 48px; width: auto;" />
+                </a>
+              @else
+                —
+              @endif
             @else
               —
             @endif

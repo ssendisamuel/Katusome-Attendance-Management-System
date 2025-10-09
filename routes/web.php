@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\ScheduleSeriesController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\ReportsController;
+use App\Http\Controllers\MailStatusController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\CourseLecturerController;
 use App\Http\Controllers\StudentAttendanceController;
@@ -169,10 +170,6 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
             })
             ->count();
 
-        // Failed welcome emails
-        $failedWelcomeEmails = \Illuminate\Support\Facades\DB::table('failed_jobs')
-            ->where('payload', 'like', '%WelcomeUserMail%')
-            ->count();
 
         return view('content.dashboards.admin', compact(
             'studentsCount',
@@ -188,24 +185,11 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
             'absentToday',
             'lateToday',
             'unmarkedToday',
-            'failedWelcomeEmails'
+            // No queued email metrics; all email sends are direct SMTP
         ));
     })->name('dashboard');
 
-    // Retry failed welcome emails
-    Route::post('email/failed-retry', function () {
-        $uuids = \Illuminate\Support\Facades\DB::table('failed_jobs')
-            ->where('payload', 'like', '%WelcomeUserMail%')
-            ->pluck('uuid')
-            ->all();
-
-        if (count($uuids) > 0) {
-            \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => $uuids]);
-            return back()->with('success', 'Retrying failed welcome emails');
-        }
-
-        return back()->with('error', 'No failed welcome emails to retry');
-    })->name('email.failed.retry');
+    // No queued email retry route; delivery is direct via SMTP
 });
 
 // Student check-in routes
@@ -239,6 +223,10 @@ Route::middleware(['auth', 'can:lecturer'])->group(function () {
 
 // Change password (for authenticated users)
 Route::middleware(['auth'])->group(function () {
+    // Mail status polling endpoints (authenticated)
+    Route::get('/mail/status/welcome', [MailStatusController::class, 'welcome'])->name('mail.status.welcome');
+    // Attendance confirmation mail status by attendance id
+    Route::get('/mail/status/attendance', [MailStatusController::class, 'attendance'])->name('mail.status.attendance');
     Route::get('/account/change-password', [ChangePasswordController::class, 'edit'])->name('password.change.edit');
     Route::post('/account/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
 

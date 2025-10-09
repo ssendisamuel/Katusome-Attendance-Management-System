@@ -22,10 +22,13 @@
     @if($attendance)
       <div class="alert alert-info">Already marked: {{ ucfirst($attendance->status) }} at {{ optional($attendance->marked_at)->format('H:i') }}</div>
       @if($attendance->selfie_path)
-        <div class="mt-3">
-          <p class="mb-2">Selfie captured at check-in:</p>
-          <img src="{{ url(\Illuminate\Support\Facades\Storage::url($attendance->selfie_path)) }}" alt="Attendance selfie" class="img-fluid rounded" style="max-width: 320px;" />
-        </div>
+        @php($exists = \Illuminate\Support\Facades\Storage::disk('public')->exists($attendance->selfie_path))
+        @if($exists)
+          <div class="mt-3">
+            <p class="mb-2">Selfie captured at check-in:</p>
+            <img src="{{ url(\Illuminate\Support\Facades\Storage::url($attendance->selfie_path)) }}" alt="Attendance selfie" class="img-fluid rounded" style="max-width: 320px;" />
+          </div>
+        @endif
       @endif
     @endif
 

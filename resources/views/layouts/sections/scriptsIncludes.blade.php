@@ -31,7 +31,7 @@
 @endif
 
   <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
-  @vite(['resources/assets/js/config.js'])
+@vite(['resources/assets/js/config.js'])
 
 @if ($configData['hasCustomizer'])
 <script type="module">
@@ -67,5 +67,23 @@
       }
     }
   });
+</script>
+@endif
+
+@if(session('success') || session('info') || session('error'))
+<script>
+  (function(){
+    if (window.Toast) {
+      @if(session('success'))
+        window.Toast.fire({ icon: 'success', title: @json(session('success')) });
+      @endif
+      @if(session('info'))
+        window.Toast.fire({ icon: 'info', title: @json(session('info')) });
+      @endif
+      @if(session('error'))
+        window.Toast.fire({ icon: 'error', title: @json(session('error')) });
+      @endif
+    }
+  })();
 </script>
 @endif

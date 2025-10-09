@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Mail\WelcomeUserMail;
 
@@ -94,7 +96,13 @@ class LecturerController extends Controller
         $token = Password::broker()->createToken($user);
         $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
         $loginUrl = url(route('login', [], false));
-        Mail::to($user->email)->queue(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
+        // Send welcome email immediately via SMTP (no queue)
+        try {
+            Mail::to($user->email)->send(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
+            Log::info('Welcome mail sent', ['email' => $user->email]);
+        } catch (\Throwable $e) {
+            Log::warning('Sending welcome mail failed for lecturer', ['email' => $user->email, 'error' => $e->getMessage()]);
+        }
 
         Lecturer::create([
             'user_id' => $user->id,
@@ -102,7 +110,7 @@ class LecturerController extends Controller
         ]);
         return redirect()->route('admin.lecturers.index')
             ->with('success', 'Lecturer created')
-            ->with('info', 'Welcome emails are being sent in the background');
+            ->with('info', 'Welcome email sent');
     }
 
     public function edit(Lecturer $lecturer)
@@ -134,7 +142,13 @@ class LecturerController extends Controller
             $token = Password::broker()->createToken($user);
             $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
             $loginUrl = url(route('login', [], false));
-            Mail::to($user->email)->queue(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+            // Send welcome email immediately via SMTP
+            try {
+                Mail::to($user->email)->send(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
+                Log::info('Welcome mail sent when creating lecturer user', ['email' => $user->email]);
+            } catch (\Throwable $e) {
+                Log::warning('Sending welcome mail failed when creating lecturer user', ['email' => $user->email, 'error' => $e->getMessage()]);
+            }
             $lecturer->user()->associate($user);
         } else {
             $lecturer->user->name = $data['name'];
@@ -156,7 +170,7 @@ class LecturerController extends Controller
         $lecturer->save();
         return redirect()->route('admin.lecturers.index')
             ->with('success', 'Lecturer updated')
-            ->with('info', 'Welcome emails are being sent in the background');
+            ->with('info', 'Welcome email sent');
     }
 
     public function destroy(Lecturer $lecturer)

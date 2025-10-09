@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -13,19 +12,10 @@ use App\Models\Schedule;
 use App\Models\Attendance;
 use Illuminate\Support\Facades\Storage;
 
-class AttendanceConfirmationMail extends Mailable implements ShouldQueue
+class AttendanceConfirmationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /**
-     * Number of times the job may be attempted.
-     */
-    public int $tries = 5;
-
-    /**
-     * Backoff timing between retries in seconds.
-     */
-    public $backoff = [60, 120, 300, 600];
 
     public Student $student;
     public Schedule $schedule;
@@ -58,8 +48,11 @@ class AttendanceConfirmationMail extends Mailable implements ShouldQueue
     {
         $selfieUrl = null;
         if ($this->attendance->selfie_path) {
-            // Public disk URL (requires storage:link)
-            $selfieUrl = url(Storage::url($this->attendance->selfie_path));
+            // Only expose selfie if it exists on the public disk
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($this->attendance->selfie_path)) {
+                // Public disk URL (requires storage:link)
+                $selfieUrl = url(Storage::url($this->attendance->selfie_path));
+            }
         }
 
         // Prefer a dedicated summary page for the specific attendance record.
@@ -89,4 +82,6 @@ class AttendanceConfirmationMail extends Mailable implements ShouldQueue
     {
         return [];
     }
+
+    // Queued mailable for async delivery
 }

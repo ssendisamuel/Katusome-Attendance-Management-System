@@ -77,6 +77,18 @@
 @vite(['resources/assets/js/report-export.js'])
 <script>
   (function () {
+    if (window.Toast) {
+      @if(session('success'))
+        window.Toast.fire({ icon: 'success', title: @json(session('success')) });
+      @endif
+      @if(session('info'))
+        window.Toast.fire({ icon: 'info', title: @json(session('info')) });
+      @endif
+      @if(session('error'))
+        window.Toast.fire({ icon: 'error', title: @json(session('error')) });
+      @endif
+    }
+
     document.querySelectorAll('.js-delete-lecturer').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();

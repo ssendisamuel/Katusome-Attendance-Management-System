@@ -40,23 +40,29 @@ This guide prepares the project for production deployment on a CWP server.
    - `php artisan route:cache` (ensure no route closures)
    - `php artisan view:cache`
 
-## Queue Worker (emails and async jobs)
-- Ensure `QUEUE_CONNECTION=database`.
-- Start a worker with Supervisor (recommended):
+## Email Delivery (Direct SMTP)
+All emails are sent immediately via direct SMTP. There are no queue workers, outbox tables, or scheduled drain jobs.
 
-```
-[program:laravel-worker]
-process_name=%(program_name)s_%(process_num)02d
-command=php /path/to/app/artisan queue:work database --sleep=3 --tries=3 --timeout=90
-autostart=true
-autorestart=true
-numprocs=1
-redirect_stderr=true
-stdout_logfile=/var/log/laravel-worker.log
-stopwaitsecs=3600
-```
+### Requirements
+- Set mail driver to SMTP: `.env` `MAIL_MAILER=smtp`.
+- Configure SMTP host, port, username, password, and EHLO domain.
+- Ensure outbound SMTP is allowed by your hosting provider/firewall.
 
-- Alternatively, run: `php artisan queue:work` in a screen/tmux session.
+### Verification
+- Send a test email: `php artisan mail:test-send you@example.com --subject="SMTP Direct Test" --body="Hello from direct SMTP."`
+- Check `storage/logs/laravel.log` for `info` entries confirming delivery attempts.
+
+### Caching
+- After deployment, refresh caches:
+  - `php artisan optimize:clear`
+  - `php artisan config:cache`
+  - `php artisan route:cache`
+  - `php artisan view:cache`
+
+### Troubleshooting
+- If emails fail, verify `.env` SMTP credentials and `MAIL_EHLO_DOMAIN`.
+- Try a different port (`MAIL_PORT=587` or `MAIL_PORT=465` with `MAIL_SCHEME=tls/ssl`).
+- Confirm that DNS and reverse DNS are correctly set for the sending host.
 
 ## Broken Images (avatars/selfies)
 - Files are stored under `storage/app/public/avatars` and `storage/app/public/selfies`.

@@ -13,7 +13,7 @@ use Carbon\Carbon;
 class DispatchAutoAttendanceMail extends Command
 {
     protected $signature = 'mail:test-attendance:auto {--studentId=} {--scheduleId=}';
-    protected $description = 'Automatically find a student and schedule and queue an attendance confirmation email';
+    protected $description = 'Automatically find a student and schedule and send an attendance confirmation email immediately via SMTP';
 
     public function handle(): int
     {
@@ -53,8 +53,8 @@ class DispatchAutoAttendanceMail extends Command
             'marked_at' => Carbon::now(),
         ]);
 
-        Mail::to(optional($student->user)->email)->queue(new AttendanceConfirmationMail($student, $schedule, $attendance));
-        $this->info('Queued attendance confirmation mail for student #'.$student->id.' schedule #'.$schedule->id);
+        Mail::mailer('smtp')->to(optional($student->user)->email)->send(new AttendanceConfirmationMail($student, $schedule, $attendance));
+        $this->info('Sent attendance confirmation mail immediately for student #'.$student->id.' schedule #'.$schedule->id);
         return self::SUCCESS;
     }
 }
