@@ -46,7 +46,7 @@
           <div class="card h-100">
             <div class="card-body">
               <div class="d-flex align-items-center mb-3">
-                <span class="icon-base ri ri-user-time-line icon-28px me-2 text-success"></span>
+                <span class="icon-base ri ri-user-line icon-28px me-2 text-success"></span>
                 <h5 class="mb-0">Individual History</h5>
               </div>
               <p class="mb-0 text-muted">Attendance for a specific student or staff.</p>

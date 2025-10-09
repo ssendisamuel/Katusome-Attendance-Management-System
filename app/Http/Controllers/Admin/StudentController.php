@@ -163,6 +163,8 @@ class StudentController extends Controller
             'program_id' => ['required', 'exists:programs,id'],
             'group_id' => ['required', 'exists:groups,id'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'must_change_password' => ['nullable', 'boolean'],
         ], [
             'email.regex' => 'Email must be a mubs.ac.ug address.',
         ]);
@@ -183,6 +185,12 @@ class StudentController extends Controller
         } else {
             $student->user->name = $data['name'];
             $student->user->email = $data['email'];
+            if (!empty($data['password'])) {
+                $student->user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+                $student->user->must_change_password = (bool)($data['must_change_password'] ?? false);
+            } elseif (array_key_exists('must_change_password', $data)) {
+                $student->user->must_change_password = (bool)$data['must_change_password'];
+            }
             $student->user->save();
         }
 

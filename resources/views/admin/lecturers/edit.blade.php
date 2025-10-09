@@ -18,13 +18,27 @@
       <input type="email" name="email" class="form-control" value="{{ old('email', $lecturer->email) }}">
       @error('email')<div class="text-danger small">{{ $message }}</div>@enderror
     </div>
-    <div class="mb-3">
-      <label class="form-label">Phone</label>
-      <input type="text" name="phone" class="form-control" value="{{ old('phone', $lecturer->phone) }}">
-      @error('phone')<div class="text-danger small">{{ $message }}</div>@enderror
-    </div>
-    <button class="btn btn-primary">Update</button>
-    <a href="{{ route('admin.lecturers.index') }}" class="btn btn-outline-secondary">Cancel</a>
+<div class="mb-3">
+  <label class="form-label">Phone</label>
+  <input type="text" name="phone" class="form-control" value="{{ old('phone', $lecturer->phone) }}">
+  @error('phone')<div class="text-danger small">{{ $message }}</div>@enderror
+</div>
+<div class="mb-3">
+  <label class="form-label">New Password (optional)</label>
+  <input type="password" name="password" class="form-control" autocomplete="new-password" placeholder="Leave blank to keep current password">
+  @error('password')<div class="text-danger small">{{ $message }}</div>@enderror
+  <div class="form-text">If provided, the lecturer's password will be updated.</div>
+  </div>
+<div class="mb-3">
+  <label class="form-label">Confirm New Password</label>
+  <input type="password" name="password_confirmation" class="form-control" autocomplete="new-password">
+  </div>
+<div class="form-check mb-3">
+  <input type="checkbox" name="must_change_password" id="mustChangePassword" class="form-check-input" value="1" {{ old('must_change_password', optional($lecturer->user)->must_change_password) ? 'checked' : '' }}>
+  <label class="form-check-label" for="mustChangePassword">Require password change on next login</label>
+  </div>
+<button class="btn btn-primary">Update</button>
+<a href="{{ route('admin.lecturers.index') }}" class="btn btn-outline-secondary">Cancel</a>
   </form>
 </div>
 @endsection

@@ -222,10 +222,10 @@
         </div>
         <!-- Register Card -->
         <img alt="mask"
-          src="{{ asset('assets/img/illustrations/auth-basic-register-mask-' . $configData['theme'] . '.png') }}"
+          src="{{ asset('assets/img/illustrations/misc-bg-' . $configData['theme'] . '.png') }}"
           class="authentication-image d-none d-lg-block"
-          data-app-light-img="illustrations/auth-basic-register-mask-light.png"
-          data-app-dark-img="illustrations/auth-basic-register-mask-dark.png" />
+          data-app-light-img="illustrations/misc-bg-light.png"
+          data-app-dark-img="illustrations/misc-bg-dark.png" />
       </div>
     </div>
   </div>

@@ -124,7 +124,7 @@ $customizerHidden = 'customizer-hide';
             <div class="mb-5 form-password-toggle form-control-validation">
               <div class="input-group input-group-merge">
                 <div class="form-floating form-floating-outline">
-                  <input type="password" id="password" class="form-control @error('password') is-invalid @enderror" name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;" aria-describedby="password" required />
+                  <input type="password" id="password" class="form-control @error('password') is-invalid @enderror" name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;" aria-describedby="password" required autocomplete="current-password" />
                   <label for="password">Password</label>
                 </div>
                 <span class="input-group-text cursor-pointer"><i class="icon-base ri ri-eye-off-line icon-20px"></i></span>
@@ -182,11 +182,11 @@ $customizerHidden = 'customizer-hide';
       <!-- /Login Card -->
       <!-- Illustration mask -->
       <img alt="mask"
-        src="{{ asset('assets/img/illustrations/auth-basic-login-mask-' . $configData['theme'] . '.png') }}"
+        src="{{ asset('assets/img/illustrations/misc-bg-' . $configData['theme'] . '.png') }}"
         class="authentication-image d-none d-lg-block"
-        data-app-light-img="illustrations/auth-basic-login-mask-light.png"
-        data-app-dark-img="illustrations/auth-basic-login-mask-dark.png"
-        onerror="this.onerror=null;this.src='{{ asset('assets/img/illustrations/auth-basic-register-mask-' . $configData['theme'] . '.png') }}';" />
+        data-app-light-img="illustrations/misc-bg-light.png"
+        data-app-dark-img="illustrations/misc-bg-dark.png"
+        onerror="this.onerror=null;this.src='{{ asset('assets/img/illustrations/misc-bg-light.png') }}';" />
     </div>
   </div>
 </div>

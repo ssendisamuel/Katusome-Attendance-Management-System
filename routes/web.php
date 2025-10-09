@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ScheduleSeriesController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\CourseLecturerController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\LecturerAttendanceController;
 use App\Http\Controllers\StudentDashboardController;
@@ -74,12 +75,18 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     // Groups by program for cascading selects
     Route::get('programs/{program}/groups', [GroupController::class, 'byProgram'])->name('programs.groups');
     Route::resource('courses', CourseController::class)->except(['show']);
+    // Assign lecturers to courses
+    Route::get('course-lecturers', [CourseLecturerController::class, 'index'])->name('course-lecturers.index');
+    Route::get('course-lecturers/{course}/edit', [CourseLecturerController::class, 'edit'])->name('course-lecturers.edit');
+    Route::put('course-lecturers/{course}', [CourseLecturerController::class, 'update'])->name('course-lecturers.update');
     Route::resource('students', StudentController::class)->except(['show']);
     // Students bulk upload
     Route::get('students/import', [StudentController::class, 'importForm'])->name('students.import.form');
     Route::get('students/import/template', [StudentController::class, 'importTemplate'])->name('students.import.template');
     Route::post('students/import', [StudentController::class, 'importProcess'])->name('students.import.process');
     Route::resource('lecturers', LecturerController::class)->except(['show']);
+    // Lecturers search for Select2
+    Route::get('lecturers/search', [LecturerController::class, 'search'])->name('lecturers.search');
     Route::resource('schedules', ScheduleController::class)->except(['show']);
     Route::resource('series', ScheduleSeriesController::class)->except(['show']);
     // Generate schedules from a series

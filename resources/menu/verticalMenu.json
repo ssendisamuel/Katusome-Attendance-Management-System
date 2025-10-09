@@ -26,6 +26,12 @@
       "slug": "admin.courses.index"
     },
     {
+      "url": "/admin/course-lecturers",
+      "name": "Course-Lecturer Assignments",
+      "icon": "menu-icon icon-base ri ri-exchange-line",
+      "slug": "admin.course-lecturers.index"
+    },
+    {
       "url": "/admin/students",
       "name": "Students",
       "icon": "menu-icon icon-base ri ri-user-line",
@@ -83,7 +89,7 @@
         {
           "url": "/admin/reports/individual",
           "name": "Individual History",
-          "icon": "menu-icon icon-base ri ri-user-time-line",
+          "icon": "menu-icon icon-base ri ri-user-line",
           "slug": "admin.reports.individual"
         },
         {

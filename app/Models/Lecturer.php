@@ -70,4 +70,10 @@ class Lecturer extends Model
         return $this->belongsToMany(Schedule::class, 'lecturer_schedule')
             ->withTimestamps();
     }
+
+    public function courses()
+    {
+        return $this->belongsToMany(Course::class, 'course_lecturer')
+            ->withTimestamps();
+    }
 }
