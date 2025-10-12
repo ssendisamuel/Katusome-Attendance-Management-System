@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Schedule;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class AttendanceController extends Controller
 {
@@ -36,7 +39,8 @@ class AttendanceController extends Controller
         }
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
-            $query->where(function ($q) use ($term) {
+            // Include $hasPivot inside closure to avoid undefined variable errors
+            $query->where(function ($q) use ($term, $hasPivot) {
                 // Search by canonical identity via related users
                 $q->whereHas('student.user', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.course', fn($qq) => $qq->where('name', 'like', $term))
@@ -138,6 +142,72 @@ class AttendanceController extends Controller
             ]);
         }
         return view('admin.attendance.index', compact('attendances', 'courses', 'groups', 'lecturers'));
+    }
+
+    public function create(Request $request)
+    {
+        $date = $request->input('date') ?: now()->toDateString();
+        $courses = \App\Models\Course::all();
+        $groups = \App\Models\Group::all();
+
+        $scheduleQuery = Schedule::with(['course', 'group', 'lecturer'])
+            ->orderByDesc('start_at');
+        if ($request->filled('course_id')) {
+            $scheduleQuery->where('course_id', $request->integer('course_id'));
+        }
+        if ($request->filled('group_id')) {
+            $scheduleQuery->where('group_id', $request->integer('group_id'));
+        }
+        if ($date) {
+            $scheduleQuery->whereDate('start_at', $date);
+        }
+        $schedules = $scheduleQuery->limit(200)->get();
+
+        // Order students by related user's name (students.name was dropped)
+        $students = Student::leftJoin('users', 'users.id', '=', 'students.user_id')
+            ->select('students.*')
+            ->orderBy('users.name')
+            ->orderBy('students.reg_no')
+            ->orderBy('students.student_no')
+            ->limit(1000)
+            ->get();
+
+        return view('admin.attendance.create', compact('schedules', 'students', 'courses', 'groups', 'date'));
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'schedule_id' => ['required', 'exists:schedules,id'],
+            'student_ids' => ['required', 'array', 'min:1'],
+            'student_ids.*' => ['required', 'exists:students,id'],
+            'status' => ['required', 'in:present,late,absent'],
+            'marked_at' => ['required', 'date'],
+            'lat' => ['nullable', 'numeric'],
+            'lng' => ['nullable', 'numeric'],
+        ]);
+
+        $created = 0; $updated = 0;
+        foreach ($data['student_ids'] as $sid) {
+            $attendance = Attendance::updateOrCreate(
+                [
+                    'schedule_id' => $data['schedule_id'],
+                    'student_id' => $sid,
+                ],
+                [
+                    'status' => $data['status'],
+                    'marked_at' => Carbon::parse($data['marked_at']),
+                    'lat' => $data['lat'] ?? null,
+                    'lng' => $data['lng'] ?? null,
+                    'selfie_path' => null,
+                ]
+            );
+            // Heuristic: if just created vs updated
+            $attendance->wasRecentlyCreated ? $created++ : $updated++;
+        }
+
+        $msg = 'Attendance saved: ' . $created . ' created' . ($updated ? (', ' . $updated . ' updated') : '') . '.';
+        return redirect()->route('admin.attendance.index')->with('success', $msg);
     }
 
     public function destroy(Attendance $attendance)
