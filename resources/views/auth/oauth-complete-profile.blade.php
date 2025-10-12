@@ -19,6 +19,9 @@ $configData = Helper::appClasses();
 
             <form method="POST" action="{{ route('oauth.google.complete-profile') }}">
               @csrf
+              <div class="alert alert-info small">
+                For convenience, you can set a password now so you may log in with email/password in addition to Google.
+              </div>
               <div class="mb-3">
                 <label class="form-label">Full Name</label>
                 <input type="text" class="form-control" value="{{ $user->name }}" disabled>
@@ -61,6 +64,15 @@ $configData = Helper::appClasses();
               <div class="mb-3">
                 <label for="year_of_study" class="form-label">Year of Study</label>
                 <input id="year_of_study" name="year_of_study" type="number" min="1" max="6" class="form-control" value="1">
+              </div>
+
+              <div class="mb-3">
+                <label for="password" class="form-label">Set Password (optional)</label>
+                <input id="password" name="password" type="password" class="form-control" autocomplete="new-password" placeholder="Choose a strong password">
+              </div>
+              <div class="mb-3">
+                <label for="password_confirmation" class="form-label">Confirm Password</label>
+                <input id="password_confirmation" name="password_confirmation" type="password" class="form-control" autocomplete="new-password" placeholder="Re-enter password">
               </div>
 
               <button type="submit" class="btn btn-primary d-grid w-100">Finish</button>

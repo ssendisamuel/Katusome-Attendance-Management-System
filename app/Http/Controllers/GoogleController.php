@@ -29,16 +29,20 @@ class GoogleController extends Controller
         $name = $googleUser->getName();
         $avatar = $googleUser->getAvatar();
 
-        // Enforce MUBS domain for students; allow admins/lecturers existing
+        // Pre-check: find any existing canonical user by email
+        $existingUser = User::where('email', $email)->first();
+        // Domain enforcement applies only for auto-creation of student accounts.
+        // Pre-existing admin/lecturer accounts can sign in regardless of domain.
         $domain = substr(strrchr($email, '@'), 1);
         $allowedDomain = config('app.allowed_google_domain', 'mubs.ac.ug');
-        if ($allowedDomain && strtolower($domain) !== strtolower($allowedDomain)) {
-            return redirect()->route('login')->with('error', 'Please use your MUBS Google account');
-        }
+        $isAllowedDomain = !$allowedDomain || strtolower($domain) === strtolower($allowedDomain);
 
         // Find or create user
-        $user = User::where('email', $email)->first();
-        if (!$user) {
+        if (!$existingUser) {
+            // If domain not allowed, do not auto-create accounts
+            if (!$isAllowedDomain) {
+                return redirect()->route('login')->with('error', 'Please use your MUBS Google account');
+            }
             $user = User::create([
                 'name' => $name,
                 'email' => $email,
@@ -47,14 +51,27 @@ class GoogleController extends Controller
                 'avatar_url' => $avatar,
             ]);
         } else {
-            // Update basic profile info
+            $user = $existingUser;
+            // Update basic profile info (non-invasive identity fields)
             $user->update([
                 'name' => $name ?? $user->name,
                 'avatar_url' => $avatar ?? $user->avatar_url,
             ]);
         }
 
-        // If student profile exists, log in and go to dashboard
+        // Role-aware login and redirect
+        // Admins and lecturers: sign in and redirect to their dashboards immediately
+        if (in_array($user->role, ['admin', 'lecturer'])) {
+            Auth::login($user);
+            if ($user->role === 'admin') {
+                return redirect()->route('admin.dashboard');
+            }
+            if ($user->role === 'lecturer') {
+                return redirect()->route('lecturer.attendance.index');
+            }
+        }
+
+        // Students: if student profile exists, go to student dashboard
         $student = Student::where('user_id', $user->id)->first();
         if ($student) {
             Auth::login($user);
@@ -87,6 +104,7 @@ class GoogleController extends Controller
             'student_no' => ['required', 'string', 'max:50'],
             'reg_no' => ['nullable', 'string', 'max:50'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:6'],
+            'password' => ['nullable', \Illuminate\Validation\Rules\Password::defaults(), 'confirmed'],
         ]);
 
         $userId = session('oauth_user_id');
@@ -105,6 +123,13 @@ class GoogleController extends Controller
                 'group_id' => $data['group_id'],
                 'year_of_study' => $data['year_of_study'] ?? 1,
             ]);
+
+            // If password provided, set it and clear must_change_password
+            if (!empty($data['password'])) {
+                $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+                $user->must_change_password = false;
+                $user->save();
+            }
         });
 
         // Clear session placeholder and log in
