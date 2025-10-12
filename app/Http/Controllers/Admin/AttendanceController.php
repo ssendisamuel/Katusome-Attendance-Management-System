@@ -39,7 +39,8 @@ class AttendanceController extends Controller
         }
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
-            $query->where(function ($q) use ($term) {
+            // Include $hasPivot inside closure to avoid undefined variable errors
+            $query->where(function ($q) use ($term, $hasPivot) {
                 // Search by canonical identity via related users
                 $q->whereHas('student.user', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.course', fn($qq) => $qq->where('name', 'like', $term))

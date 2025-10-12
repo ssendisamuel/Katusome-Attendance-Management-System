@@ -75,6 +75,16 @@ content="{{ config('variables.templateKeyword') ? config('variables.templateKeyw
     .app-brand-logo.demo svg { display: none !important; }
     /* Ensure our PNG is visible and sized consistently */
     .app-brand-logo.demo img.app-brand-img { display: inline-block !important; height: 54px; width: 54px; object-fit: contain; }
+
+    /* Pagination arrows sizing and alignment fix */
+    .pagination .page-link { font-size: 0.875rem; line-height: 1.25; padding: 0.25rem 0.5rem; }
+    .pagination .page-link .icon-base,
+    .pagination .page-link i,
+    .pagination .page-link svg,
+    .pagination .page-link span[aria-hidden="true"] { font-size: 0.875rem; line-height: 1; vertical-align: middle; }
+    .pagination.round .page-link,
+    .pagination.rounded .page-link,
+    .pagination.square .page-link { font-size: inherit; }
   </style>
 
   <!-- Include Styles -->
