@@ -67,12 +67,12 @@ $configData = Helper::appClasses();
               </div>
 
               <div class="mb-3">
-                <label for="password" class="form-label">Set Password (optional)</label>
-                <input id="password" name="password" type="password" class="form-control" autocomplete="new-password" placeholder="Choose a strong password">
+                <label for="password" class="form-label">Set Password</label>
+                <input id="password" name="password" type="password" class="form-control" autocomplete="new-password" placeholder="Choose a strong password" required>
               </div>
               <div class="mb-3">
                 <label for="password_confirmation" class="form-label">Confirm Password</label>
-                <input id="password_confirmation" name="password_confirmation" type="password" class="form-control" autocomplete="new-password" placeholder="Re-enter password">
+                <input id="password_confirmation" name="password_confirmation" type="password" class="form-control" autocomplete="new-password" placeholder="Re-enter password" required>
               </div>
 
               <button type="submit" class="btn btn-primary d-grid w-100">Finish</button>

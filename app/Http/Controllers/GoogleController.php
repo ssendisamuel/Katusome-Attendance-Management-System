@@ -104,7 +104,7 @@ class GoogleController extends Controller
             'student_no' => ['required', 'string', 'max:50'],
             'reg_no' => ['nullable', 'string', 'max:50'],
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:6'],
-            'password' => ['nullable', \Illuminate\Validation\Rules\Password::defaults(), 'confirmed'],
+            'password' => ['required', \Illuminate\Validation\Rules\Password::defaults(), 'confirmed'],
         ]);
 
         $userId = session('oauth_user_id');
