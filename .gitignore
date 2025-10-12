@@ -46,3 +46,27 @@ yarn-error.log
 # Ignore compiled Blade views and other generated framework files
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
+
+# Ignore Laravel storage framework caches and sessions
+/storage/framework/cache/**
+/storage/framework/sessions/**
+/storage/framework/testing/**
+!/storage/framework/cache/.gitignore
+!/storage/framework/sessions/.gitignore
+!/storage/framework/testing/.gitignore
+
+# Ignore Laravel logs
+/storage/logs/*.log
+!/storage/logs/.gitignore
+
+# Ignore bootstrap cache generated files
+/bootstrap/cache/*.php
+/bootstrap/cache/*.tmp
+!/bootstrap/cache/.gitignore
+
+# Ignore build artifacts and archives in public
+/public/*.zip
+
+# OS-specific junk files
+.DS_Store
+Thumbs.db
