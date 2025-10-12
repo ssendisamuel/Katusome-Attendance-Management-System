@@ -130,6 +130,38 @@
             <div>{{ __('Attendance') }}</div>
           </a>
         </li>
+        <li class="menu-item">
+          <a href="{{ route('lecturer.reports.dashboard') }}" class="menu-link menu-toggle">
+            <i class="menu-icon icon-base ri ri-file-chart-line"></i>
+            <div>{{ __('Reports') }}</div>
+          </a>
+          <ul class="menu-sub">
+            <li class="menu-item">
+              <a href="{{ route('lecturer.reports.dashboard') }}" class="menu-link">
+                <i class="menu-icon icon-base ri ri-dashboard-line"></i>
+                <div>{{ __('Overview') }}</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="{{ route('lecturer.reports.daily') }}" class="menu-link">
+                <i class="menu-icon icon-base ri ri-calendar-check-line"></i>
+                <div>{{ __('Daily Attendance') }}</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="{{ route('lecturer.reports.monthly') }}" class="menu-link">
+                <i class="menu-icon icon-base ri ri-bar-chart-2-line"></i>
+                <div>{{ __('Monthly Summary') }}</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="{{ route('lecturer.reports.individual') }}" class="menu-link">
+                <i class="menu-icon icon-base ri ri-user-line"></i>
+                <div>{{ __('Individual History') }}</div>
+              </a>
+            </li>
+          </ul>
+        </li>
       @else
         <li class="menu-item">
           <a href="{{ url('/') }}" class="menu-link">

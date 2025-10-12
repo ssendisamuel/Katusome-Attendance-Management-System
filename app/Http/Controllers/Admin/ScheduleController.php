@@ -87,7 +87,8 @@ class ScheduleController extends Controller
 
     public function create()
     {
-        $courses = Course::all();
+        // Eager-load lecturers assigned to courses for preselection in the form
+        $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
         $series = ScheduleSeries::all();
@@ -131,7 +132,8 @@ class ScheduleController extends Controller
 
     public function edit(Schedule $schedule)
     {
-        $courses = Course::all();
+        // Eager-load lecturers assigned to courses for preselection in the form
+        $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
         $series = ScheduleSeries::all();

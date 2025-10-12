@@ -23,7 +23,8 @@ class ScheduleSeriesController extends Controller
 
     public function create()
     {
-        $courses = Course::all();
+        // Eager-load lecturers assigned to courses for possible preselection
+        $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
         return view('admin.series.create', compact('courses', 'groups', 'lecturers'));
@@ -52,7 +53,8 @@ class ScheduleSeriesController extends Controller
 
     public function edit(ScheduleSeries $series)
     {
-        $courses = Course::all();
+        // Eager-load lecturers assigned to courses for possible preselection
+        $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
         return view('admin.series.edit', compact('series', 'courses', 'groups', 'lecturers'));

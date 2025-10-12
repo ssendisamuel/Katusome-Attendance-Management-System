@@ -6,6 +6,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+latest-old-10-Old_files/
+/latest-old-10-Old_files/
 
 .env
 .env.backup
@@ -46,3 +48,7 @@ yarn-error.log
 # Ignore compiled Blade views and other generated framework files
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
+
+# Ignore Laravel bootstrap cache (generated files)
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore

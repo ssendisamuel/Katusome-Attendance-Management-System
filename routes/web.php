@@ -96,7 +96,7 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     // Bulk generate schedules for all current-term series
     Route::post('series/generate-all', [ScheduleSeriesController::class, 'generateAll'])
         ->name('series.generate-all');
-    Route::resource('attendance', AttendanceController::class)->only(['index', 'destroy']);
+    Route::resource('attendance', AttendanceController::class)->only(['index', 'destroy', 'create', 'store']);
 
     // Reports
     Route::get('reports', [ReportsController::class, 'dashboard'])->name('reports.dashboard');
@@ -219,6 +219,18 @@ Route::middleware(['auth', 'can:lecturer'])->group(function () {
     Route::get('/lecturer/attendance', [LecturerAttendanceController::class, 'index'])->name('lecturer.attendance.index');
     Route::get('/lecturer/attendance/{schedule}/mark', [LecturerAttendanceController::class, 'edit'])->name('lecturer.attendance.edit');
     Route::post('/lecturer/attendance/{schedule}/mark', [LecturerAttendanceController::class, 'update'])->name('lecturer.attendance.update');
+
+    // Lecturer reports
+    Route::get('/lecturer/reports', [\App\Http\Controllers\LecturerReportsController::class, 'dashboard'])->name('lecturer.reports.dashboard');
+    Route::get('/lecturer/reports/daily', [\App\Http\Controllers\LecturerReportsController::class, 'daily'])->name('lecturer.reports.daily');
+    Route::get('/lecturer/reports/monthly', [\App\Http\Controllers\LecturerReportsController::class, 'monthly'])->name('lecturer.reports.monthly');
+    Route::get('/lecturer/reports/individual', [\App\Http\Controllers\LecturerReportsController::class, 'individual'])->name('lecturer.reports.individual');
+    // Student suggestions for individual report
+    Route::get('/lecturer/reports/students/search', [\App\Http\Controllers\LecturerReportsController::class, 'studentsSearch'])->name('lecturer.reports.students.search');
+    // CSV exports
+    Route::get('/lecturer/reports/daily/export/csv', [\App\Http\Controllers\LecturerReportsController::class, 'exportDailyCsv'])->name('lecturer.reports.daily.export.csv');
+    Route::get('/lecturer/reports/monthly/export/csv', [\App\Http\Controllers\LecturerReportsController::class, 'exportMonthlyCsv'])->name('lecturer.reports.monthly.export.csv');
+    Route::get('/lecturer/reports/individual/export/csv', [\App\Http\Controllers\LecturerReportsController::class, 'exportIndividualCsv'])->name('lecturer.reports.individual.export.csv');
 });
 
 // Change password (for authenticated users)
