@@ -234,6 +234,7 @@ class StudentController extends Controller
     {
         $term = trim($request->input('q', ''));
         $limit = (int)$request->input('limit', 20);
+        $groupId = $request->input('group_id');
         // Search by canonical user name and student_no/reg_no
         $query = Student::with('group', 'user');
         if ($term !== '') {
@@ -243,6 +244,9 @@ class StudentController extends Controller
                   ->orWhere('student_no', 'like', $like)
                   ->orWhere('reg_no', 'like', $like);
             });
+        }
+        if ($groupId) {
+            $query->where('group_id', (int)$groupId);
         }
         $students = $query->orderBy('id')->limit($limit)->get();
         return response()->json(

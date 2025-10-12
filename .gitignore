@@ -6,6 +6,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+latest-old-10-Old_files/
+/latest-old-10-Old_files/
 
 .env
 .env.backup
@@ -70,3 +72,6 @@ yarn-error.log
 # OS-specific junk files
 .DS_Store
 Thumbs.db
+# Ignore Laravel bootstrap cache (generated files)
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore

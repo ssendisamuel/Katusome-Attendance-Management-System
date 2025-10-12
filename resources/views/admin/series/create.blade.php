@@ -15,10 +15,10 @@
     <div class="row">
       <div class="col-md-4 mb-3">
         <label class="form-label">Course</label>
-        <select name="course_id" class="form-select" required>
+        <select id="series-create-course" name="course_id" class="form-select" required>
           <option value="">Select Course</option>
           @foreach($courses as $course)
-            <option value="{{ $course->id }}" @selected(old('course_id')==$course->id)>{{ $course->name }}</option>
+            <option value="{{ $course->id }}" data-lecturer-ids="{{ $course->lecturers->pluck('id')->implode(',') }}" @selected(old('course_id')==$course->id)>{{ $course->name }}</option>
           @endforeach
         </select>
         @error('course_id')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -35,7 +35,7 @@
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label">Lecturer (optional)</label>
-        <select name="lecturer_id" class="form-select">
+        <select id="series-create-lecturer" name="lecturer_id" class="form-select">
           <option value="">None</option>
           @foreach($lecturers as $lecturer)
             <option value="{{ $lecturer->id }}" @selected(old('lecturer_id')==$lecturer->id)>{{ $lecturer->name }}</option>
@@ -111,3 +111,37 @@
   </form>
 </div>
 @endsection
+<script>
+  (function() {
+    const courseSelect = document.getElementById('series-create-course');
+    const lecturerSelect = document.getElementById('series-create-lecturer');
+    if (!courseSelect || !lecturerSelect) return;
+
+    function preselectFirstLecturer(opt) {
+      if (!opt) return;
+      const csv = (opt.dataset.lecturerIds || '').trim();
+      const ids = csv ? csv.split(',').filter(Boolean) : [];
+      if (ids.length === 0) return;
+      // For series (single lecturer), select the first assigned lecturer if none chosen yet
+      const first = ids[0];
+      if (!first) return;
+      Array.from(lecturerSelect.options).forEach(o => {
+        o.selected = String(o.value) === String(first);
+      });
+    }
+
+    // Only auto-select if no lecturer currently selected
+    const hasSelection = Array.from(lecturerSelect.options).some(o => o.selected && o.value);
+    if (!hasSelection && courseSelect.value) {
+      preselectFirstLecturer(courseSelect.selectedOptions[0]);
+    }
+
+    courseSelect.addEventListener('change', function() {
+      // On change, if user hasn't selected anything, set first lecturer
+      const userHasSelected = Array.from(lecturerSelect.options).some(o => o.selected && o.value);
+      if (!userHasSelected) {
+        preselectFirstLecturer(courseSelect.selectedOptions[0]);
+      }
+    });
+  })();
+</script>

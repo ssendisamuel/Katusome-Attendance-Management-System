@@ -15,10 +15,10 @@
     <div class="row g-4">
       <div class="col-md-6">
         <label class="form-label">Course</label>
-        <select name="course_id" class="form-select" required>
+        <select id="schedule-course" name="course_id" class="form-select" required>
           <option value="">Select Course</option>
           @foreach($courses as $course)
-            <option value="{{ $course->id }}" {{ old('course_id') == $course->id ? 'selected' : '' }}>{{ $course->name }}</option>
+            <option value="{{ $course->id }}" data-lecturer-ids="{{ $course->lecturers->pluck('id')->implode(',') }}" {{ old('course_id') == $course->id ? 'selected' : '' }}>{{ $course->name }}</option>
           @endforeach
         </select>
         @error('course_id')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -37,7 +37,7 @@
 
       <div class="col-md-6">
         <label class="form-label">Lecturers (optional)</label>
-        <select name="lecturer_ids[]" class="form-select" multiple>
+        <select id="schedule-lecturers" name="lecturer_ids[]" class="form-select" multiple>
           @foreach($lecturers as $lecturer)
             <option value="{{ $lecturer->id }}" {{ collect(old('lecturer_ids', []))->contains($lecturer->id) ? 'selected' : '' }}>{{ $lecturer->name }}</option>
           @endforeach
@@ -83,4 +83,35 @@
     </div>
   </form>
 </div>
+<script>
+  (function() {
+    const courseSelect = document.getElementById('schedule-course');
+    const lecturersSelect = document.getElementById('schedule-lecturers');
+    if (!courseSelect || !lecturersSelect) return;
+
+    function setLecturersFromCourseOption(opt) {
+      if (!opt) return;
+      const csv = (opt.dataset.lecturerIds || '').trim();
+      const ids = csv ? csv.split(',').filter(Boolean) : [];
+      // If no course lecturers, do not alter selection
+      if (ids.length === 0) return;
+      // Clear current selection and select course lecturers
+      Array.from(lecturersSelect.options).forEach(o => {
+        o.selected = ids.includes(String(o.value));
+      });
+    }
+
+    // On initial load, only preselect if no lecturers selected yet
+    const initiallySelectedCount = lecturersSelect.selectedOptions.length;
+    if (initiallySelectedCount === 0 && courseSelect.value) {
+      setLecturersFromCourseOption(courseSelect.selectedOptions[0]);
+    }
+
+    // On course change, always preselect assigned lecturers
+    courseSelect.addEventListener('change', function() {
+      const opt = courseSelect.selectedOptions[0];
+      setLecturersFromCourseOption(opt);
+    });
+  })();
+</script>
 @endsection

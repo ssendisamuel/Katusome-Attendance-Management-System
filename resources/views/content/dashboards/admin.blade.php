@@ -101,17 +101,7 @@
             </div>
           </div>
           <div class="card mt-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h6 class="mb-0">Email Queue Health</h6>
-              <form method="POST" action="{{ route('admin.email.failed.retry') }}">
-                @csrf
-                <button class="btn btn-sm btn-outline-primary" type="submit">Retry Failed Welcome Emails</button>
-              </form>
-            </div>
-            <div class="card-body">
-              <p class="mb-2">Failed jobs (welcome emails): <strong>{{ $failedWelcomeEmails ?? '—' }}</strong></p>
-              <p class="text-muted small mb-0">Queue: <code>{{ config('queue.default') }}</code> | Connection: <code>{{ env('QUEUE_CONNECTION') }}</code></p>
-            </div>
+            
           </div>
         </div>
       </div>

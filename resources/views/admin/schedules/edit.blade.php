@@ -16,9 +16,9 @@
     <div class="row g-4">
       <div class="col-md-6">
         <label class="form-label">Course</label>
-        <select name="course_id" class="form-select" required>
+        <select id="schedule-edit-course" name="course_id" class="form-select" required>
           @foreach($courses as $course)
-            <option value="{{ $course->id }}" {{ (old('course_id', $schedule->course_id) == $course->id) ? 'selected' : '' }}>{{ $course->name }}</option>
+            <option value="{{ $course->id }}" data-lecturer-ids="{{ $course->lecturers->pluck('id')->implode(',') }}" {{ (old('course_id', $schedule->course_id) == $course->id) ? 'selected' : '' }}>{{ $course->name }}</option>
           @endforeach
         </select>
         @error('course_id')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -39,7 +39,7 @@
 @php($hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule'))
         @php($selectedLecturers = collect(old('lecturer_ids', ($hasPivot && $schedule->relationLoaded('lecturers')) ? ($schedule->lecturers->pluck('id') ?? []) : (optional($schedule->lecturer_id) ? [ $schedule->lecturer_id ] : []))))
         <label class="form-label">Lecturers (optional)</label>
-        <select name="lecturer_ids[]" class="form-select" multiple>
+        <select id="schedule-edit-lecturers" name="lecturer_ids[]" class="form-select" multiple>
           @foreach($lecturers as $lecturer)
             <option value="{{ $lecturer->id }}" {{ $selectedLecturers->contains($lecturer->id) ? 'selected' : '' }}>{{ $lecturer->name }}</option>
           @endforeach
@@ -85,4 +85,32 @@
     </div>
   </form>
 </div>
+<script>
+  (function() {
+    const courseSelect = document.getElementById('schedule-edit-course');
+    const lecturersSelect = document.getElementById('schedule-edit-lecturers');
+    if (!courseSelect || !lecturersSelect) return;
+
+    function setLecturersFromCourseOption(opt) {
+      if (!opt) return;
+      const csv = (opt.dataset.lecturerIds || '').trim();
+      const ids = csv ? csv.split(',').filter(Boolean) : [];
+      if (ids.length === 0) return;
+      Array.from(lecturersSelect.options).forEach(o => {
+        o.selected = ids.includes(String(o.value));
+      });
+    }
+
+    // On initial load, only preselect if no lecturers selected yet (e.g., switching course)
+    const initiallySelectedCount = lecturersSelect.selectedOptions.length;
+    if (initiallySelectedCount === 0 && courseSelect.value) {
+      setLecturersFromCourseOption(courseSelect.selectedOptions[0]);
+    }
+
+    courseSelect.addEventListener('change', function() {
+      const opt = courseSelect.selectedOptions[0];
+      setLecturersFromCourseOption(opt);
+    });
+  })();
+</script>
 @endsection

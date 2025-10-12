@@ -5,6 +5,7 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h4 class="mb-0">Attendance Records</h4>
+  <a href="{{ route('admin.attendance.create') }}" class="btn btn-primary"><span class="icon-base ri ri-add-line me-1"></span>Add Attendance</a>
 </div>
 @if(session('success'))
   <div class="alert alert-success">{{ session('success') }}</div>
