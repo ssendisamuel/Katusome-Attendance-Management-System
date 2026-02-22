@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
     if (formChangePass) {
       const fv = FormValidation.formValidation(formChangePass, {
         fields: {
-          currentPassword: {
+          current_password: {
             validators: {
               notEmpty: {
                 message: 'Please current password'
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
               }
             }
           },
-          newPassword: {
+          password: {
             validators: {
               notEmpty: {
                 message: 'Please enter new password'
@@ -35,14 +35,14 @@ document.addEventListener('DOMContentLoaded', function (e) {
               }
             }
           },
-          confirmPassword: {
+          password_confirmation: {
             validators: {
               notEmpty: {
                 message: 'Please confirm new password'
               },
               identical: {
                 compare: function () {
-                  return formChangePass.querySelector('[name="newPassword"]').value;
+                  return formChangePass.querySelector('[name="password"]').value;
                 },
                 message: 'The password and its confirm are not the same'
               },

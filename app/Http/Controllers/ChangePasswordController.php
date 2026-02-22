@@ -18,18 +18,47 @@ class ChangePasswordController extends Controller
     {
         $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
-            'password' => ['required', Rules\Password::defaults(), 'confirmed'],
+            'password' => [
+                'required',
+                'confirmed',
+                Rules\Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+            ],
         ]);
 
         $user = auth()->user();
+
+        // 1. Update password
         $user->password = Hash::make($validated['password']);
-        // Clear force-change flag after successful password update
+        $user->save();
+
+        // 2. Refresh sessions (this uses the NEW password hash)
+        // Note: This updates the remember token but shouldn't overwrite other fields on $user unless specifically re-fetched
+        auth()->logoutOtherDevices($validated['password']);
+
+        // 3. Update force-change flag and save AGAIN to ensure it persists
+        // We use fresh() to ensure we have the latest state before saving this flag,
+        // to avoid any race condition or overwrite from logoutOtherDevices
+        $user = $user->fresh();
         $user->must_change_password = false;
         $user->save();
 
-        // Optionally log out other devices for security
-        auth()->logoutOtherDevices($validated['password']);
+        $role = strtolower($user->role);
 
-        return back()->with('success', 'Your password has been updated.');
+        // Redirect based on role
+        if ($role === 'student') {
+            return redirect()->route('student.dashboard')->with('success', 'Password changed successfully.');
+        }
+        if ($role === 'lecturer') {
+            return redirect()->route('lecturer.dashboard')->with('success', 'Password changed successfully.');
+        }
+        if ($role === 'admin') {
+            return redirect()->route('admin.dashboard')->with('success', 'Password changed successfully.');
+        }
+
+        // Fallback
+        return redirect('/')->with('success', 'Password changed successfully.');
     }
 }

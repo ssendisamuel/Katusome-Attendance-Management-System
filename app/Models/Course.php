@@ -9,11 +9,13 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['code', 'name', 'description', 'program_id'];
+    protected $fillable = ['code', 'name', 'description'];
 
-    public function program()
+    public function programs()
     {
-        return $this->belongsTo(Program::class);
+        return $this->belongsToMany(Program::class, 'course_program')
+            ->withPivot(['year_of_study', 'semester_offered', 'credit_units', 'course_type'])
+            ->withTimestamps();
     }
 
     public function schedules()

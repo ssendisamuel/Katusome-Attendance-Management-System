@@ -16,18 +16,58 @@ class ScheduleSeriesController extends Controller
 {
     public function index()
     {
-        $series = ScheduleSeries::with(['course', 'group', 'lecturer'])->paginate(15);
+        $series = ScheduleSeries::with(['course', 'course.lecturers', 'group', 'lecturer'])
+            ->withCount('schedules')
+            ->orderByDesc('updated_at')
+            ->paginate(15);
         $audits = \App\Models\GenerationAudit::with(['series', 'user'])->latest()->paginate(10);
         return view('admin.series.index', compact('series', 'audits'));
     }
 
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:schedule_series,id',
+        ]);
+
+        ScheduleSeries::whereIn('id', $validated['ids'])->delete();
+
+        return redirect()->route('admin.series.index')->with('success', count($validated['ids']) . ' Schedule series deleted successfully.');
+    }
+
+    public function getProgramDetails(\App\Models\Program $program)
+    {
+        // Load courses with pivot data
+        $program->load(['courses' => function($q) {
+            $q->orderBy('code');
+        }]);
+
+        return response()->json([
+            'code' => $program->code,
+            'courses' => $program->courses->map(function($c) {
+                return [
+                    'id' => $c->id,
+                    'code' => $c->code,
+                    'name' => $c->name,
+                    'year_of_study' => $c->pivot->year_of_study, // assuming pivot is loaded
+                    // Semester logic if needed
+                ];
+            })
+        ]);
+    }
+
     public function create()
     {
-        // Eager-load lecturers assigned to courses for possible preselection
+        // Fetch programs for the dropdown
+        $programs = \App\Models\Program::orderBy('name')->get();
+        // Eager-load lecturers assigned to courses for possible preselection (Legacy: Might not be needed but keeping for now)
         $courses = Course::with('lecturers')->get();
         $groups = Group::all();
-        $lecturers = Lecturer::all();
-        return view('admin.series.create', compact('courses', 'groups', 'lecturers'));
+        // $lecturers = Lecturer::all(); // No longer needed
+        $semesters = \App\Models\AcademicSemester::orderByDesc('year')->orderByDesc('semester')->get();
+        $activeSemester = \App\Models\AcademicSemester::where('is_active', true)->first();
+        return view('admin.series.create', compact('programs', 'courses', 'groups', 'semesters', 'activeSemester'));
     }
 
     public function store(Request $request)
@@ -37,7 +77,7 @@ class ScheduleSeriesController extends Controller
             'course_id' => ['required', 'exists:courses,id'],
             'group_id' => ['required', 'exists:groups,id'],
             'lecturer_id' => ['nullable', 'exists:lecturers,id'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'venue_id' => ['nullable', 'exists:venues,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'start_time' => ['required', 'date_format:H:i'],
@@ -45,7 +85,31 @@ class ScheduleSeriesController extends Controller
             'days_of_week' => ['nullable', 'array'],
             'days_of_week.*' => ['in:mon,tue,wed,thu,fri,sat,sun'],
             'is_recurring' => ['boolean'],
+            'academic_semester_id' => ['nullable', 'exists:academic_semesters,id'],
+            'is_online' => ['boolean'],
+            'requires_clock_out' => ['nullable', 'boolean'],
+            'access_code' => ['nullable', 'string', 'max:50'],
         ]);
+
+        if (empty($data['academic_semester_id'])) {
+            $active = \App\Models\AcademicSemester::where('is_active', true)->value('id');
+            if ($active) {
+                $data['academic_semester_id'] = $active;
+            }
+        }
+
+        // Auto-assign lecturer from Course
+        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
+        if ($course && $course->lecturers->isNotEmpty()) {
+            // Assign the first lecturer found
+            $data['lecturer_id'] = $course->lecturers->first()->id;
+        }
+
+        // Auto-assign lecturer from Course
+        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
+        if ($course && $course->lecturers->isNotEmpty()) {
+            $data['lecturer_id'] = $course->lecturers->first()->id;
+        }
 
         ScheduleSeries::create($data);
         return redirect()->route('admin.series.index')->with('success', 'Schedule series created');
@@ -57,7 +121,8 @@ class ScheduleSeriesController extends Controller
         $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
-        return view('admin.series.edit', compact('series', 'courses', 'groups', 'lecturers'));
+        $semesters = \App\Models\AcademicSemester::orderByDesc('year')->orderByDesc('semester')->get();
+        return view('admin.series.edit', compact('series', 'courses', 'groups', 'lecturers', 'semesters'));
     }
 
     public function update(Request $request, ScheduleSeries $series)
@@ -67,7 +132,7 @@ class ScheduleSeriesController extends Controller
             'course_id' => ['required', 'exists:courses,id'],
             'group_id' => ['required', 'exists:groups,id'],
             'lecturer_id' => ['nullable', 'exists:lecturers,id'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'venue_id' => ['nullable', 'exists:venues,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'start_time' => ['required', 'date_format:H:i'],
@@ -75,7 +140,25 @@ class ScheduleSeriesController extends Controller
             'days_of_week' => ['nullable', 'array'],
             'days_of_week.*' => ['in:mon,tue,wed,thu,fri,sat,sun'],
             'is_recurring' => ['boolean'],
+            'academic_semester_id' => ['nullable', 'exists:academic_semesters,id'],
+            'is_online' => ['boolean'],
+            'requires_clock_out' => ['nullable', 'boolean'],
+            'access_code' => ['nullable', 'string', 'max:50'],
         ]);
+
+        // Boolean handling for checkboxes
+        $data['is_online'] = $request->has('is_online');
+        $data['is_recurring'] = $request->has('is_recurring');
+        $data['requires_clock_out'] = $request->has('requires_clock_out');
+
+        // Auto-assign lecturer if course changes or if not set
+        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
+        if ($course && $course->lecturers->isNotEmpty()) {
+             // Logic: If course changed, definitely update lecturer.
+             // If course is same, we might want to keep existing lecturer if still valid?
+             // For now, enforcing the "Course's First Lecturers" rule as per user request implies strictly following course.
+            $data['lecturer_id'] = $course->lecturers->first()->id;
+        }
 
         $series->update($data);
         return redirect()->route('admin.series.index')->with('success', 'Schedule series updated');
@@ -193,7 +276,12 @@ class ScheduleSeriesController extends Controller
                     ],
                     [
                         'series_id' => $series->id,
-                        'location' => $series->location,
+                        'venue_id' => $series->venue_id,
+                        'location' => $series->venue ? $series->venue->fullName() : $series->location,
+                        'is_online' => $series->is_online,
+                        'requires_clock_out' => $series->requires_clock_out,
+                        'access_code' => $series->access_code,
+                        'academic_semester_id' => $series->academic_semester_id,
                         'end_at' => $endAt,
                     ]
                 );
@@ -311,7 +399,12 @@ class ScheduleSeriesController extends Controller
                         ],
                         [
                             'series_id' => $series->id,
-                            'location' => $series->location,
+                            'venue_id' => $series->venue_id,
+                            'location' => $series->venue ? $series->venue->fullName() : $series->location,
+                            'is_online' => $series->is_online,
+                            'requires_clock_out' => $series->requires_clock_out,
+                            'access_code' => $series->access_code,
+                            'academic_semester_id' => $series->academic_semester_id,
                             'end_at' => $endAt,
                         ]
                     );

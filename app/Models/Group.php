@@ -11,6 +11,7 @@ class Group extends Model
 
     protected $fillable = ['name', 'program_id'];
 
+    // Program relationship is now optional
     public function program()
     {
         return $this->belongsTo(Program::class);

@@ -15,3 +15,29 @@ A Laravel-based application for managing student attendance. It supports schedul
 
 - Attendance button activates only within schedule `start_at`–`end_at` per app timezone.
 - Clear caches after config changes: `php artisan optimize:clear`.
+
+## API Endpoints (Student)
+
+These endpoints are protected by `auth:sanctum` and `can:student` middleware.
+
+### Authentication
+
+- `POST /api/login`: Login for students.
+- `GET /api/user`: Get current user.
+
+### Attendance
+
+- `GET /api/student/schedules/today`: Get today's schedules and attendance status.
+- `POST /api/student/attendance`: Check-in (requires `schedule_id`, `lat`, `lng`).
+- `POST /api/student/clock-out`: Clock-out (requires `schedule_id`, `lat`, `lng`).
+
+### Dashboard & Courses
+
+- `GET /api/student/courses`: Get list of enrolled courses.
+- `GET /api/student/history`: Get detailed attendance history/track.
+
+### Profile
+
+- `GET /api/student/profile`: Get profile details.
+- `POST /api/student/profile`: Update profile (email/phone).
+- `POST /api/student/change-password`: Change password.

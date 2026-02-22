@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class CourseLeader extends Model
+{
+    protected $fillable = [
+        'student_id',
+        'program_id',
+        'year_of_study',
+        'group_id',
+    ];
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(Program::class);
+    }
+
+    public function group()
+    {
+        return $this->belongsTo(Group::class);
+    }
+}

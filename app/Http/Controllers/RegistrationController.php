@@ -20,9 +20,9 @@ class RegistrationController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'gender' => ['nullable', 'in:male,female,other'],
             'student_no' => ['required', 'string', 'max:50', 'unique:students,student_no'],
-            'reg_no' => ['nullable', 'string', 'max:50', 'unique:students,reg_no'],
-            'program_id' => ['required', 'exists:programs,id'],
-            'group_id' => ['required', 'exists:groups,id'],
+            'reg_no' => ['required', 'string', 'max:50', 'unique:students,reg_no'],  // REQUIRED
+            'program_id' => ['nullable', 'exists:programs,id'],  // Optional - set during enrollment
+            'group_id' => ['nullable', 'exists:groups,id'],      // Optional - set during enrollment
             'year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
         ], [
             'email.regex' => 'Email must be a mubs.ac.ug address.',
@@ -38,15 +38,13 @@ class RegistrationController extends Controller
         // Create student linked to canonical user
         Student::create([
             'user_id' => $user->id,
-            'name' => $data['name'],
-            'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'gender' => $data['gender'] ?? null,
             'student_no' => $data['student_no'],
-            'reg_no' => $data['reg_no'] ?? null,
-            'program_id' => $data['program_id'],
-            'group_id' => $data['group_id'],
-            'year_of_study' => $data['year_of_study'] ?? 1,
+            'reg_no' => $data['reg_no'],  // Required
+            'program_id' => $data['program_id'] ?? null,  // Optional - set during enrollment
+            'group_id' => $data['group_id'] ?? null,      // Optional - set during enrollment
+            'year_of_study' => $data['year_of_study'] ?? null,
         ]);
 
         auth()->login($user);

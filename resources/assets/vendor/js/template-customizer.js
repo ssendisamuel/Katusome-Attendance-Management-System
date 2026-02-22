@@ -1595,8 +1595,8 @@ TemplateCustomizer.DIRECTIONS = [
 // Theme setting language
 TemplateCustomizer.LANGUAGES = {
   en: {
-    panel_header: 'Template Customizer',
-    panel_sub_header: 'Customize and preview in real time',
+    panel_header: 'Katusome Design',
+    panel_sub_header: 'Developed by Ssendi Samuel',
     theming_header: 'Theming',
     color_label: 'Primary Color',
     theme_label: 'Theme',
@@ -1610,8 +1610,8 @@ TemplateCustomizer.LANGUAGES = {
     direction_label: 'Direction'
   },
   fr: {
-    panel_header: 'Modèle De Personnalisation',
-    panel_sub_header: 'Personnalisez et prévisualisez en temps réel',
+    panel_header: 'Katusome Design',
+    panel_sub_header: 'Developed by Ssendi Samuel',
     theming_header: 'Thématisation',
     color_label: 'Couleur primaire',
     theme_label: 'Thème',
@@ -1625,8 +1625,8 @@ TemplateCustomizer.LANGUAGES = {
     direction_label: 'Direction'
   },
   ar: {
-    panel_header: 'أداة تخصيص القالب',
-    panel_sub_header: 'تخصيص ومعاينة في الوقت الحقيقي',
+    panel_header: 'Katusome Design',
+    panel_sub_header: 'Developed by Ssendi Samuel',
     theming_header: 'السمات',
     color_label: 'اللون الأساسي',
     theme_label: 'سمة',
@@ -1640,8 +1640,8 @@ TemplateCustomizer.LANGUAGES = {
     direction_label: 'اتجاه'
   },
   de: {
-    panel_header: 'Vorlagen-Anpasser',
-    panel_sub_header: 'Anpassen und Vorschau in Echtzeit',
+    panel_header: 'Katusome Design',
+    panel_sub_header: 'Developed by Ssendi Samuel',
     theming_header: 'Themen',
     color_label: 'Grundfarbe',
     theme_label: 'Thema',

@@ -10,18 +10,26 @@
       </tr>
     </thead>
     <tbody>
-      @foreach($students as $student)
+      @foreach ($students as $student)
         <tr>
-          <td>{{ optional($student->user)->name ?? $student->name }}</td>
+          <td>
+            <a href="#" class="view-student-details fw-bold text-body"
+              data-url="{{ route('admin.students.show', $student) }}">
+              {{ optional($student->user)->name ?? $student->name }}
+            </a>
+          </td>
           <td>{{ optional($student->program)->name }}</td>
           <td>{{ optional($student->group)->name }}</td>
           <td>{{ $student->year_of_study }}</td>
           <td class="text-end">
+            <a href="#" class="btn btn-sm btn-outline-info view-student-details me-1"
+              data-url="{{ route('admin.students.show', $student) }}">View</a>
             <a href="{{ route('admin.students.edit', $student) }}" class="btn btn-sm btn-outline-primary">Edit</a>
             <form action="{{ route('admin.students.destroy', $student) }}" method="POST" class="d-inline">
               @csrf
               @method('DELETE')
-              <button type="submit" class="btn btn-sm btn-outline-danger js-delete-student" data-name="{{ $student->name }}">Delete</button>
+              <button type="submit" class="btn btn-sm btn-outline-danger js-delete-student"
+                data-name="{{ $student->name }}">Delete</button>
             </form>
           </td>
         </tr>

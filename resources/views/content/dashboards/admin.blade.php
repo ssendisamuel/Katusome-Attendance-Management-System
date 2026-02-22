@@ -4,265 +4,353 @@
 
 @section('title', 'Admin Dashboard')
 
+@section('vendor-style')
+    @vite(['resources/assets/vendor/libs/apex-charts/apex-charts.scss'])
+@endsection
+
+@section('vendor-script')
+    @vite(['resources/assets/vendor/libs/apex-charts/apexcharts.js'])
+@endsection
+
+@section('page-script')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Attendance Trend Chart
+            const attendanceChartEl = document.querySelector('#attendanceTrendChart');
+            if (attendanceChartEl) {
+                const chartConfig = {
+                    chart: {
+                        height: 300,
+                        type: 'area',
+                        parentHeightOffset: 0,
+                        toolbar: {
+                            show: false
+                        }
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    stroke: {
+                        width: 2,
+                        curve: 'smooth'
+                    },
+                    series: [{
+                            name: 'Present',
+                            data: @json($seriesPresent)
+                        },
+                        {
+                            name: 'Absent',
+                            data: @json($seriesAbsent)
+                        },
+                        {
+                            name: 'Late',
+                            data: @json($seriesLate)
+                        }
+                    ],
+                    xaxis: {
+                        categories: @json($chartDates),
+                        axisBorder: {
+                            show: false
+                        },
+                        axisTicks: {
+                            show: false
+                        }
+                    },
+                    yaxis: {
+                        labels: {
+                            formatter: function(val) {
+                                return val.toFixed(0);
+                            }
+                        }
+                    },
+                    colors: [config.colors.success, config.colors.danger, config.colors.warning],
+                    fill: {
+                        type: 'gradient',
+                        gradient: {
+                            shadeIntensity: 1,
+                            opacityFrom: 0.7,
+                            opacityTo: 0.9,
+                            stops: [0, 90, 100]
+                        }
+                    },
+                    grid: {
+                        borderColor: config.colors.borderColor,
+                        strokeDashArray: 3,
+                        xaxis: {
+                            lines: {
+                                show: true
+                            }
+                        }
+                    },
+                    tooltip: {
+                        y: {
+                            formatter: function(val) {
+                                return val + " Students"
+                            }
+                        }
+                    }
+                };
+                const attendanceChart = new ApexCharts(attendanceChartEl, chartConfig);
+                attendanceChart.render();
+            }
+        });
+    </script>
+@endsection
+
 @section('content')
-<div class="row gy-6">
-  @if(session('success'))
-    <div class="col-12">
-      <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-    </div>
-  @endif
-  @if(session('error'))
-    <div class="col-12">
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-    </div>
-  @endif
-  @if(session('info'))
-    <div class="col-12">
-      <div class="alert alert-info alert-dismissible fade show" role="alert">
-        {{ session('info') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-    </div>
-  @endif
-  <!-- Top stats cards styled like academy -->
-  <div class="col-12">
-    <div class="card bg-transparent shadow-none border-0 mb-6">
-      <div class="card-body row g-6 p-0 pb-5">
-        <div class="col-12 col-md-8 card-separator">
-          <h5 class="mb-2">Attendance Overview</h5>
-          <div class="row g-4 me-12">
-            <div class="col-12 col-sm-6 col-lg-6">
-              <div class="card h-100 bg-primary-subtle">
-                <div class="card-body d-flex align-items-center gap-4">
-                  <div class="avatar avatar-lg">
-                    <div class="avatar-initial rounded bg-white">
-                      <span class="icon-base ri ri-group-line icon-28px text-primary"></span>
-                    </div>
-                  </div>
-                  <div class="content-right">
-                    <p class="mb-1 fw-medium text-primary text-nowrap">Students</p>
-                    <span class="text-primary mb-0 h5">{{ $studentsCount ?? '—' }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-sm-6 col-lg-6">
-              <div class="card h-100 bg-info-subtle">
-                <div class="card-body d-flex align-items-center gap-4">
-                  <div class="avatar avatar-lg">
-                    <div class="avatar-initial rounded bg-white">
-                      <span class="icon-base ri ri-book-2-line icon-28px text-info"></span>
-                    </div>
-                  </div>
-                  <div class="content-right">
-                    <p class="mb-1 fw-medium text-info text-nowrap">Courses</p>
-                    <span class="text-info mb-0 h5">{{ $coursesCount ?? '—' }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-sm-6 col-lg-6">
-              <div class="card h-100 bg-success-subtle">
-                <div class="card-body d-flex align-items-center gap-4">
-                  <div class="avatar avatar-lg">
-                    <div class="avatar-initial rounded bg-white">
-                      <span class="icon-base ri ri-calendar-check-line icon-28px text-success"></span>
-                    </div>
-                  </div>
-                  <div class="content-right">
-                    <p class="mb-1 fw-medium text-success text-nowrap">Classes Today</p>
-                    <span class="text-success mb-0 h5">{{ $todaysClasses ?? '—' }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 col-md-4 ps-md-4 ps-lg-6">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <div>
-                <h5 class="mb-1">Attendance Rate</h5>
-                <p class="mb-9">Today</p>
-              </div>
-              <div class="time-spending-chart">
-                <h5 class="mb-2">{{ $attendanceRateToday }}<span class="text-body"></span></h5>
-                <span class="badge bg-success rounded-pill">Overall {{ $attendanceRateOverall }}</span>
-              </div>
-            </div>
-            <div>
-              <span class="icon-base ri ri-bar-chart-2-line icon-32px text-success"></span>
-            </div>
-          </div>
-          <div class="card mt-4">
-            
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    <div class="row gy-6">
 
-  <!-- Metrics tiles -->
-  <div class="row mb-6 g-6">
-    <!-- Entities full-width -->
-    <div class="col-12">
-      <div class="card h-100">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <h5 class="card-title m-0 me-2">Entities</h5>
-        </div>
-        <div class="card-body row g-4">
-          <div class="col-12 col-sm-6 col-lg-6">
-            <div class="card h-100 bg-primary-subtle">
-              <div class="card-body d-flex align-items-center gap-3">
-                <div class="avatar avatar-md">
-                  <div class="avatar-initial rounded bg-white">
-                    <span class="icon-base ri ri-layout-2-line icon-22px text-primary"></span>
-                  </div>
+        <!-- Welcome / Stats Cards -->
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h4 class="mb-0">Overview</h4>
                 </div>
-                <div>
-                  <p class="mb-0 text-nowrap text-primary">Programs</p>
-                  <h4 class="mb-0 text-primary">{{ $programsCount ?? '—' }}</h4>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-lg-6">
-            <div class="card h-100 bg-info-subtle">
-              <div class="card-body d-flex align-items-center gap-3">
-                <div class="avatar avatar-md">
-                  <div class="avatar-initial rounded bg-white">
-                    <span class="icon-base ri ri-team-line icon-22px text-info"></span>
-                  </div>
-                </div>
-                <div>
-                  <p class="mb-0 text-nowrap text-info">Groups</p>
-                  <h4 class="mb-0 text-info">{{ $groupsCount ?? '—' }}</h4>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-lg-6">
-            <div class="card h-100 bg-warning-subtle">
-              <div class="card-body d-flex align-items-center gap-3">
-                <div class="avatar avatar-md">
-                  <div class="avatar-initial rounded bg-white">
-                    <span class="icon-base ri ri-user-star-line icon-22px text-warning"></span>
-                  </div>
-                </div>
-                <div>
-                  <p class="mb-0 text-nowrap text-warning">Lecturers</p>
-                  <h4 class="mb-0 text-warning">{{ $lecturersCount ?? '—' }}</h4>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-lg-6">
-            <div class="card h-100 bg-danger-subtle">
-              <div class="card-body d-flex align-items-center gap-3">
-                <div class="avatar avatar-md">
-                  <div class="avatar-initial rounded bg-white">
-                    <span class="icon-base ri ri-time-line icon-22px text-danger"></span>
-                  </div>
-                </div>
-                <div>
-                  <p class="mb-0 text-nowrap text-danger">Pending Attendance</p>
-                  <h4 class="mb-0 text-danger">{{ $pendingAttendance ?? '—' }}</h4>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <!-- Students -->
+                        <div class="col-sm-6 col-xl-3">
+                            <a href="{{ route('admin.students.index') }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-4">
+                                    <span class="badge bg-label-primary rounded p-2">
+                                        <span class="icon-base ri ri-group-line icon-24px"></span>
+                                    </span>
+                                    <div class="content-right">
+                                        <h5 class="mb-0 text-heading">{{ $studentsCount }}</h5>
+                                        <small class="text-muted">Total Students</small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <!-- Lecturers -->
+                        <div class="col-sm-6 col-xl-3">
+                            <a href="{{ route('admin.lecturers.index') }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-4">
+                                    <span class="badge bg-label-warning rounded p-2">
+                                        <span class="icon-base ri ri-user-star-line icon-24px"></span>
+                                    </span>
+                                    <div class="content-right">
+                                        <h5 class="mb-0 text-heading">{{ $lecturersCount }}</h5>
+                                        <small class="text-muted">Active Lecturers</small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <!-- Courses -->
+                        <div class="col-sm-6 col-xl-3">
+                            <a href="{{ route('admin.courses.index') }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-4">
+                                    <span class="badge bg-label-info rounded p-2">
+                                        <span class="icon-base ri ri-book-2-line icon-24px"></span>
+                                    </span>
+                                    <div class="content-right">
+                                        <h5 class="mb-0 text-heading">{{ $coursesCount }}</h5>
+                                        <small class="text-muted">Courses</small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <!-- Programs -->
+                        <div class="col-sm-6 col-xl-3">
+                            <a href="{{ route('admin.programs.index') }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-4">
+                                    <span class="badge bg-label-success rounded p-2">
+                                        <span class="icon-base ri ri-apps-2-line icon-24px"></span>
+                                    </span>
+                                    <div class="content-right">
+                                        <h5 class="mb-0 text-heading">{{ $programsCount }}</h5>
+                                        <small class="text-muted">Programs</small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
 
-    <!-- Today Status full-width -->
-    <div class="col-12">
-      <div class="card h-100">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <div class="card-title mb-0">
-            <h5 class="m-0 me-2">Today Status</h5>
-          </div>
+                        <!-- Reports Shortcut -->
+                        <div class="col-12 mt-4 pt-2 border-top">
+                            <a href="{{ route('admin.reports.daily') }}" class="btn btn-label-primary w-100">
+                                <span class="icon-base ri ri-file-chart-line me-1"></span> View Reports
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="px-5 py-4 border border-start-0 border-end-0">
-          <div class="d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fs-xsmall text-uppercase fw-normal">Status</h6>
-            <h6 class="mb-0 fs-xsmall text-uppercase fw-normal">Count</h6>
-          </div>
+
+        <!-- Attendance Trend Chart & Today's Stats -->
+        <div class="col-12 col-xl-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="mb-0">Attendance Trends (Last 7 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div id="attendanceTrendChart"></div>
+                </div>
+            </div>
         </div>
-        <div class="card-body pt-5">
-          <div class="d-flex justify-content-between align-items-center mb-6">
-            <div class="d-flex align-items-center gap-3">
-              <div class="avatar avatar-sm">
-                <div class="avatar-initial rounded bg-success-subtle">
-                  <span class="icon-base ri ri-check-line icon-18px text-success"></span>
+
+        <div class="col-12 col-xl-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Today's Activity</h5>
                 </div>
-              </div>
-              <div>
-                <h6 class="mb-0 text-truncate">Present</h6>
-                <small class="text-truncate">Marked today</small>
-              </div>
-            </div>
-            <div class="text-end">
-              <span class="badge bg-success">{{ $presentToday }}</span>
-            </div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mb-6">
-            <div class="d-flex align-items-center gap-3">
-              <div class="avatar avatar-sm">
-                <div class="avatar-initial rounded bg-danger-subtle">
-                  <span class="icon-base ri ri-close-line icon-18px text-danger"></span>
+                <div class="card-body">
+                    <a href="{{ route('admin.schedules.index', ['date' => now()->format('Y-m-d')]) }}"
+                        class="text-decoration-none">
+                        <div class="d-flex justify-content-between align-items-center mb-6">
+                            <h6 class="mb-0 text-heading">Classes Scheduled</h6>
+                            <h4 class="mb-0 text-primary">{{ $todaysClasses }}</h4>
+                        </div>
+                    </a>
+                    <a href="{{ route('admin.schedules.index', ['date' => now()->format('Y-m-d'), 'attendance_filter' => 'pending']) }}"
+                        class="text-decoration-none">
+                        <div class="d-flex justify-content-between align-items-center mb-6">
+                            <h6 class="mb-0 text-heading">Pending Attendance</h6>
+                            <h4 class="mb-0 text-danger">{{ $pendingAttendance }}</h4>
+                        </div>
+                    </a>
+                    <hr>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="avatar avatar-sm">
+                            <div class="avatar-initial rounded bg-label-success">
+                                <span class="icon-base ri ri-check-line icon-18px"></span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">Present</h6>
+                            <small>Marked Today</small>
+                        </div>
+                        <h5 class="mb-0 text-success">{{ $presentToday }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="avatar avatar-sm">
+                            <div class="avatar-initial rounded bg-label-danger">
+                                <span class="icon-base ri ri-close-line icon-18px"></span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">Absent</h6>
+                            <small>Marked Today</small>
+                        </div>
+                        <h5 class="mb-0 text-danger">{{ $absentToday }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="avatar avatar-sm">
+                            <div class="avatar-initial rounded bg-label-warning">
+                                <span class="icon-base ri ri-time-line icon-18px"></span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">Late</h6>
+                            <small>Marked Today</small>
+                        </div>
+                        <h5 class="mb-0 text-warning">{{ $lateToday }}</h5>
+                    </div>
                 </div>
-              </div>
-              <div>
-                <h6 class="mb-0 text-truncate">Absent</h6>
-                <small class="text-truncate">Marked today</small>
-              </div>
             </div>
-            <div class="text-end">
-              <span class="badge bg-danger">{{ $absentToday }}</span>
-            </div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mb-6">
-            <div class="d-flex align-items-center gap-3">
-              <div class="avatar avatar-sm">
-                <div class="avatar-initial rounded bg-warning-subtle">
-                  <span class="icon-base ri ri-time-line icon-18px text-warning"></span>
-                </div>
-              </div>
-              <div>
-                <h6 class="mb-0 text-truncate">Late</h6>
-                <small class="text-truncate">Marked today</small>
-              </div>
-            </div>
-            <div class="text-end">
-              <span class="badge bg-warning">{{ $lateToday }}</span>
-            </div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-3">
-              <div class="avatar avatar-sm">
-                <div class="avatar-initial rounded bg-secondary-subtle">
-                  <span class="icon-base ri ri-question-line icon-18px text-secondary"></span>
-                </div>
-              </div>
-              <div>
-                <h6 class="mb-0 text-truncate">Unmarked</h6>
-                <small class="text-truncate">For today's classes</small>
-              </div>
-            </div>
-            <div class="text-end">
-              <span class="badge bg-secondary">{{ $unmarkedToday }}</span>
-            </div>
-          </div>
         </div>
-      </div>
+
+        <!-- NEW: At-Risk Students Row -->
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">At-Risk Students</h5>
+                    <small class="text-muted">Lowest Attendance Rates</small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Student</th>
+                                <th>Present</th>
+                                <th>Total</th>
+                                <th>Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($atRiskStudents as $student)
+                                <tr>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span class="fw-medium text-heading">{{ $student->name }}</span>
+                                            <small class="text-muted">{{ $student->student_no }}</small>
+                                        </div>
+                                    </td>
+                                    <td>{{ $student->present_records }}</td>
+                                    <td>{{ $student->total_records }}</td>
+                                    <td>
+                                        <span class="badge bg-label-danger">{{ $student->attendance_rate }}%</span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center py-4">
+                                        <p class="mb-0 text-muted">No at-risk students found.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Classes</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Course</th>
+                                <th>Lecturer</th>
+                                <th>Group</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($recentClasses as $schedule)
+                                <tr>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span class="fw-medium">{{ $schedule->course->name }}</span>
+                                            <small class="text-muted">{{ $schedule->course->code }}</small>
+                                        </div>
+                                    </td>
+                                    <td>{{ $schedule->lecturer->user->name ?? 'N/A' }}</td>
+                                    <td>{{ $schedule->group->name }}</td>
+                                    <td>
+                                        {{ \Carbon\Carbon::parse($schedule->start_at)->format('D, M d H:i') }}
+                                        -
+                                        {{ \Carbon\Carbon::parse($schedule->end_at)->format('H:i') }}
+                                    </td>
+                                    <td>
+                                        @if ($schedule->is_cancelled)
+                                            <span class="badge bg-label-secondary">Not Taught</span>
+                                        @elseif ($schedule->attendanceRecords->count() > 0)
+                                            <span class="badge bg-label-success">Marked</span>
+                                        @elseif (\Carbon\Carbon::parse($schedule->end_at)->isPast())
+                                            <span class="badge bg-label-danger">Unmarked</span>
+                                        @elseif (\Carbon\Carbon::parse($schedule->start_at)->isFuture())
+                                            <span class="badge bg-label-warning">Upcoming</span>
+                                        @else
+                                            <span class="badge bg-label-primary">Ongoing</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center">No recent classes found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
-  </div>
-</div>
 @endsection

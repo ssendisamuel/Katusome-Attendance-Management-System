@@ -18,7 +18,9 @@ class Program extends Model
 
     public function courses()
     {
-        return $this->hasMany(Course::class);
+        return $this->belongsToMany(Course::class, 'course_program')
+            ->withPivot(['year_of_study', 'semester_offered', 'credit_units', 'course_type'])
+            ->withTimestamps();
     }
 
     public function students()

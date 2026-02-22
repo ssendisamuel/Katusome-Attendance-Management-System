@@ -11,9 +11,11 @@ class CourseLecturerController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Course::with(['program', 'lecturers']);
+        $query = Course::with(['programs', 'lecturers']);
         if ($request->filled('program_id')) {
-            $query->where('program_id', $request->integer('program_id'));
+            $query->whereHas('programs', function($q) use ($request) {
+                $q->where('programs.id', $request->integer('program_id'));
+            });
         }
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';

@@ -9,18 +9,14 @@ use Illuminate\Http\Request;
 
 class CourseController extends Controller
 {
-    public function index(\Illuminate\Http\Request $request)
+    public function index(Request $request)
     {
-        $query = Course::with('program');
-        if ($request->filled('program_id')) {
-            $query->where('program_id', $request->integer('program_id'));
-        }
+        $query = Course::query();
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
             $query->where(function ($q) use ($term) {
                 $q->where('name', 'like', $term)
-                  ->orWhere('code', 'like', $term)
-                  ->orWhereHas('program', fn($qq) => $qq->where('name', 'like', $term));
+                  ->orWhere('code', 'like', $term);
             });
         }
         $courses = $query->orderBy('code')->paginate(15)->appends($request->query());
@@ -29,9 +25,9 @@ class CourseController extends Controller
             $rows = $query->orderBy('code')->get();
             return response()->json([
                 'title' => 'Courses',
-                'columns' => ['Code', 'Name', 'Program'],
+                'columns' => ['Code', 'Name'],
                 'rows' => $rows->map(function ($c) {
-                    return [$c->code, $c->name, optional($c->program)->name];
+                    return [$c->code, $c->name];
                 }),
                 'meta' => [
                     'generated_at' => now()->format('d M Y H:i'),
@@ -47,14 +43,12 @@ class CourseController extends Controller
             ]);
         }
 
-        $programs = Program::all();
-        return view('admin.courses.index', compact('courses', 'programs'));
+        return view('admin.courses.index', compact('courses'));
     }
 
     public function create()
     {
-        $programs = Program::all();
-        return view('admin.courses.create', compact('programs'));
+        return view('admin.courses.create');
     }
 
     public function store(Request $request)
@@ -63,7 +57,6 @@ class CourseController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:courses,code'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'program_id' => ['required', 'exists:programs,id'],
         ]);
 
         Course::create($data);
@@ -72,8 +65,7 @@ class CourseController extends Controller
 
     public function edit(Course $course)
     {
-        $programs = Program::all();
-        return view('admin.courses.edit', compact('course', 'programs'));
+        return view('admin.courses.edit', compact('course'));
     }
 
     public function update(Request $request, Course $course)
@@ -82,7 +74,6 @@ class CourseController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:courses,code,' . $course->id],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'program_id' => ['required', 'exists:programs,id'],
         ]);
 
         $course->update($data);

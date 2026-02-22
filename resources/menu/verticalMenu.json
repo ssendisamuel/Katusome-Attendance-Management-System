@@ -1,6 +1,8 @@
 {
   "menu": [
-    { "menuHeader": "Admin" },
+    {
+      "menuHeader": "Admin"
+    },
     {
       "url": "/admin/dashboard",
       "name": "Dashboard",
@@ -26,6 +28,12 @@
       "slug": "admin.courses.index"
     },
     {
+      "url": "/admin/program-courses",
+      "name": "Program Courses",
+      "icon": "menu-icon icon-base ri ri-links-line",
+      "slug": "admin.program-courses.index"
+    },
+    {
       "url": "/admin/course-lecturers",
       "name": "Course-Lecturer Assignments",
       "icon": "menu-icon icon-base ri ri-exchange-line",
@@ -44,6 +52,18 @@
       "slug": "admin.lecturers.index"
     },
     {
+      "url": "/admin/course-leaders",
+      "name": "Course Leaders",
+      "icon": "menu-icon icon-base ri ri-star-smile-line",
+      "slug": "admin.course-leaders.index"
+    },
+    {
+      "url": "/admin/admins",
+      "name": "Admins",
+      "icon": "menu-icon icon-base ri ri-user-settings-line",
+      "slug": "admin.admins.index"
+    },
+    {
       "url": "/admin/series",
       "name": "Series",
       "icon": "menu-icon icon-base ri ri-calendar-event-line",
@@ -56,12 +76,17 @@
       "slug": "admin.schedules.index"
     },
     {
+      "url": "/admin/academic-semesters",
+      "name": "Academic Semesters",
+      "icon": "menu-icon icon-base ri ri-calendar-2-line",
+      "slug": "admin.academic-semesters.index"
+    },
+    {
       "url": "/admin/attendance",
       "name": "Attendance",
       "icon": "menu-icon icon-base ri ri-check-double-line",
       "slug": "admin.attendance.index"
-    }
-    ,
+    },
     {
       "url": "/admin/reports",
       "name": "Reports",
@@ -103,16 +128,47 @@
           "name": "Device Logs",
           "icon": "menu-icon icon-base ri ri-device-line",
           "slug": "admin.reports.devices"
+        },
+        {
+          "url": "/admin/reports/course",
+          "name": "Course Report",
+          "icon": "menu-icon icon-base ri ri-book-open-line",
+          "slug": "admin.reports.course"
+        },
+        {
+          "url": "/admin/reports/group",
+          "name": "Group Report",
+          "icon": "menu-icon icon-base ri ri-group-line",
+          "slug": "admin.reports.group"
+        },
+        {
+          "url": "/admin/reports/program",
+          "name": "Program Report",
+          "icon": "menu-icon icon-base ri ri-graduation-cap-line",
+          "slug": "admin.reports.program"
         }
       ]
-    }
-    ,
-    { "menuHeader": "Settings" },
+    },
+    {
+      "menuHeader": "Settings"
+    },
     {
       "url": "/admin/settings/location",
       "name": "Location",
       "icon": "menu-icon icon-base ri ri-map-pin-line",
       "slug": "admin.settings.location.edit"
+    },
+    {
+      "url": "/admin/settings/venues",
+      "name": "Venues",
+      "icon": "menu-icon icon-base ri ri-building-line",
+      "slug": "admin.settings.venues.index"
+    },
+    {
+      "url": "/admin/system-status",
+      "name": "System Status",
+      "icon": "menu-icon icon-base ri ri-server-line",
+      "slug": "admin.system-status.index"
     }
   ]
 }

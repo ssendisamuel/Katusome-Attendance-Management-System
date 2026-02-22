@@ -24,13 +24,15 @@ class LecturerReportsController extends Controller
         $hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule');
         $withRels = ['schedule.course', 'schedule.group', 'schedule.lecturer', 'student.user'];
         if ($hasPivot) { $withRels[] = 'schedule.lecturers'; }
+
         $query = Attendance::with($withRels)
             ->whereHas('schedule', function($q) use ($lecId, $hasPivot) {
+                // Match logic from LecturerAttendanceController
                 $q->where('lecturer_id', $lecId);
-                if ($hasPivot) {
-                    $q->orWhereHas('lecturers', fn($qq) => $qq->where('lecturers.id', $lecId));
-                }
+                // Schedules where course is assigned to lecturer
+                $q->orWhereHas('course.lecturers', fn($sq) => $sq->where('lecturers.id', $lecId));
             });
+
         return [$query, $hasPivot];
     }
 
@@ -43,6 +45,8 @@ class LecturerReportsController extends Controller
     {
         [$query, $hasPivot] = $this->scopeAttendancesToLecturer($request);
         $date = $request->input('date', now()->toDateString());
+
+        // Apply filters to the main query
         if ($request->filled('course_id')) {
             $query->whereHas('schedule', fn($q) => $q->where('course_id', $request->integer('course_id')));
         }
@@ -52,39 +56,53 @@ class LecturerReportsController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+
         $query->whereDate('marked_at', $date);
+
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
             $query->where(function ($q) use ($term, $hasPivot) {
                 $q->whereHas('student.user', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.course', fn($qq) => $qq->where('name', 'like', $term))
                   ->orWhereHas('schedule.group', fn($qq) => $qq->where('name', 'like', $term));
-                if ($hasPivot) {
-                    $q->orWhereHas('schedule.lecturers.user', fn($qq) => $qq->where('name', 'like', $term));
-                }
             });
         }
+
+        // Clone query for stats BEFORE pagination
+        $statsQuery = clone $query;
+        // removing eager loads for count query optimization
+        $statsQuery->getQuery()->eagerLoads = [];
+
+        // We need breakdown by status.
+        // Doing 3 separate counts or 1 select raw.
+        // Since we might have filters applied, let's just fetch the statuses or do conditional counts.
+        $stats = $statsQuery->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $present = $stats['present'] ?? 0;
+        $absent = $stats['absent'] ?? 0;
+        $late = $stats['late'] ?? 0;
+        $expected = $present + $absent + $late;
 
         $attendances = $query->orderByDesc('marked_at')->paginate(20)->appends($request->query());
 
         // Dropdown sources limited to lecturer scope
         $lecId = $this->lecturerId($request);
+        // Get courses/groups from schedules relevant to lecturer
+        // (Simplified to just checking direct assignment + course assignment for dropdowns)
         $courseIds = Schedule::where(function($q) use ($lecId) {
-                $q->where('lecturer_id', $lecId);
-            })
-            ->pluck('course_id')->filter()->unique()->values();
-        $groupIds = Schedule::where(function($q) use ($lecId) {
-                $q->where('lecturer_id', $lecId);
-            })
-            ->pluck('group_id')->filter()->unique()->values();
-        $courses = Course::whereIn('id', $courseIds)->get();
-        $groups = Group::whereIn('id', $groupIds)->get();
+             $q->where('lecturer_id', $lecId)
+               ->orWhereHas('course.lecturers', fn($sq) => $sq->where('lecturers.id', $lecId));
+            })->pluck('course_id')->filter()->unique();
 
-        // Summary
-        $expected = $attendances->count();
-        $present = $attendances->where('status', 'present')->count();
-        $absent = $attendances->where('status', 'absent')->count();
-        $late = $attendances->where('status', 'late')->count();
+        $groupIds = Schedule::where(function($q) use ($lecId) {
+             $q->where('lecturer_id', $lecId)
+               ->orWhereHas('course.lecturers', fn($sq) => $sq->where('lecturers.id', $lecId));
+            })->pluck('group_id')->filter()->unique();
+
+        $courses = Course::whereIn('id', $courseIds)->orderBy('name')->get();
+        $groups = Group::whereIn('id', $groupIds)->orderBy('name')->get();
 
         if ($request->wantsJson() || $request->input('format') === 'json') {
             return response()->json([
@@ -147,18 +165,42 @@ class LecturerReportsController extends Controller
     {
         [$query, $hasPivot] = $this->scopeAttendancesToLecturer($request);
         $studentId = $request->integer('student_id');
+
+        // Fallback: If no ID but name is provided, try to find the student
+        if (!$studentId && $request->filled('student_name')) {
+            $term = trim($request->input('student_name'));
+            $found = Student::whereHas('user', fn($q) => $q->where('name', 'like', "%{$term}%"))
+                ->orWhere('student_no', 'like', "%{$term}%")
+                ->first(); // Just pick the first match
+            if ($found) {
+                $studentId = $found->id;
+                // Merge into request for pagination links to work naturally?
+                // Better to just set it for query, pagination might lose it if validation fails but here we are just displaying.
+                $request->merge(['student_id' => $studentId]);
+            }
+        }
+
         if ($studentId) {
             $query->where('student_id', $studentId);
         } else {
-            $query->limit(0);
+            // Force empty result that works with paginate
+            $query->whereRaw('1 = 0');
         }
 
-        $attendances = $query->orderByDesc('marked_at')->paginate(20)->appends($request->query());
+        // Clone query for stats
+        $statsQuery = clone $query;
+        $statsQuery->getQuery()->eagerLoads = [];
+        $stats = $statsQuery->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
         $summary = [
-            'present' => $attendances->where('status','present')->count(),
-            'absent' => $attendances->where('status','absent')->count(),
-            'late' => $attendances->where('status','late')->count(),
+            'present' => $stats['present'] ?? 0,
+            'absent' => $stats['absent'] ?? 0,
+            'late' => $stats['late'] ?? 0,
         ];
+
+        $attendances = $query->orderByDesc('marked_at')->paginate(20)->appends($request->query());
 
         $student = $studentId ? Student::with(['group','user'])->find($studentId) : null;
 
