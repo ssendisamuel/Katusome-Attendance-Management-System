@@ -75,6 +75,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Admin routes (require auth and admin gate)
 Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group(function () {
+    // Organization
+    Route::resource('campuses', \App\Http\Controllers\Admin\CampusController::class)->except(['show', 'create', 'edit']);
+    Route::resource('faculties', \App\Http\Controllers\Admin\FacultyController::class)->except(['show', 'create', 'edit']);
+    Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class)->except(['show', 'create', 'edit']);
+
     Route::resource('programs', ProgramController::class)->except(['show']);
     Route::resource('groups', GroupController::class)->except(['show']);
     // Groups by program for cascading selects
@@ -143,6 +148,16 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::get('reports/devices', [ReportsController::class, 'devices'])->name('reports.devices');
     // Admin User Management
     Route::resource('admins', \App\Http\Controllers\Admin\AdminUserController::class);
+
+    // Role-based User Management (lecturers, hods, deans, qa, principal, registrar, campus_chief)
+    Route::get('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.role')
+        ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
+    Route::post('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'store'])->name('users.store')
+        ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
+    Route::put('users/{role}/{user}', [\App\Http\Controllers\Admin\UserManagementController::class, 'update'])->name('users.update')
+        ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
+    Route::delete('users/{role}/{user}', [\App\Http\Controllers\Admin\UserManagementController::class, 'destroy'])->name('users.destroy')
+        ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
 
     // Course Leaders Management
     Route::get('course-leaders/students/search', [\App\Http\Controllers\Admin\CourseLeaderController::class, 'searchStudents'])->name('course-leaders.students.search');

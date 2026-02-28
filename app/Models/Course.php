@@ -9,7 +9,12 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['code', 'name', 'description'];
+    protected $fillable = ['code', 'name', 'description', 'abbreviation', 'credit_units', 'department_id'];
+
+    public function department()
+    {
+        return $this->belongsTo(\App\Models\Department::class);
+    }
 
     public function programs()
     {

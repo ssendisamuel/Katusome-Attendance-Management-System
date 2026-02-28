@@ -10,7 +10,12 @@ class Lecturer extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'name', 'email', 'phone'];
+    protected $fillable = ['user_id', 'name', 'email', 'phone', 'department_id', 'title', 'specialization'];
+
+    public function department()
+    {
+        return $this->belongsTo(\App\Models\Department::class);
+    }
 
     // Proxy identity to the related user to avoid drift
     public function getNameAttribute($value)

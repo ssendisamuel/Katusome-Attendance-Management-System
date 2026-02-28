@@ -9,7 +9,17 @@ class Program extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code'];
+    protected $fillable = ['name', 'code', 'department_id', 'faculty_id', 'duration_years'];
+
+    public function department()
+    {
+        return $this->belongsTo(\App\Models\Department::class);
+    }
+
+    public function faculty()
+    {
+        return $this->belongsTo(\App\Models\Faculty::class);
+    }
 
     public function groups()
     {

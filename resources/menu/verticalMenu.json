@@ -10,16 +10,40 @@
       "slug": "admin.dashboard"
     },
     {
-      "url": "/admin/programs",
-      "name": "Programs",
-      "icon": "menu-icon icon-base ri ri-book-open-line",
-      "slug": "admin.programs.index"
+      "menuHeader": "MUBS"
     },
     {
-      "url": "/admin/groups",
-      "name": "Groups",
-      "icon": "menu-icon icon-base ri ri-group-line",
-      "slug": "admin.groups.index"
+      "url": "/admin/campuses",
+      "name": "Campuses",
+      "icon": "menu-icon icon-base ri ri-building-4-line",
+      "slug": "admin.campuses.index"
+    },
+    {
+      "url": "/admin/faculties",
+      "name": "Faculties",
+      "icon": "menu-icon icon-base ri ri-government-line",
+      "slug": "admin.faculties.index"
+    },
+    {
+      "url": "/admin/departments",
+      "name": "Departments",
+      "icon": "menu-icon icon-base ri ri-building-line",
+      "slug": "admin.departments.index"
+    },
+    {
+      "menuHeader": "Academics"
+    },
+    {
+      "url": "/admin/academic-semesters",
+      "name": "Academic Semesters",
+      "icon": "menu-icon icon-base ri ri-calendar-2-line",
+      "slug": "admin.academic-semesters.index"
+    },
+    {
+      "url": "/admin/programs",
+      "name": "Programmes",
+      "icon": "menu-icon icon-base ri ri-book-open-line",
+      "slug": "admin.programs.index"
     },
     {
       "url": "/admin/courses",
@@ -29,27 +53,21 @@
     },
     {
       "url": "/admin/program-courses",
-      "name": "Program Courses",
+      "name": "Programme Structure",
       "icon": "menu-icon icon-base ri ri-links-line",
       "slug": "admin.program-courses.index"
     },
     {
       "url": "/admin/course-lecturers",
-      "name": "Course-Lecturer Assignments",
+      "name": "Teaching Load",
       "icon": "menu-icon icon-base ri ri-exchange-line",
       "slug": "admin.course-lecturers.index"
     },
     {
-      "url": "/admin/students",
-      "name": "Students",
-      "icon": "menu-icon icon-base ri ri-user-line",
-      "slug": "admin.students.index"
-    },
-    {
-      "url": "/admin/lecturers",
-      "name": "Lecturers",
-      "icon": "menu-icon icon-base ri ri-user-star-line",
-      "slug": "admin.lecturers.index"
+      "url": "/admin/groups",
+      "name": "Groups",
+      "icon": "menu-icon icon-base ri ri-group-line",
+      "slug": "admin.groups.index"
     },
     {
       "url": "/admin/course-leaders",
@@ -58,10 +76,7 @@
       "slug": "admin.course-leaders.index"
     },
     {
-      "url": "/admin/admins",
-      "name": "Admins",
-      "icon": "menu-icon icon-base ri ri-user-settings-line",
-      "slug": "admin.admins.index"
+      "menuHeader": "Attendance"
     },
     {
       "url": "/admin/series",
@@ -76,12 +91,6 @@
       "slug": "admin.schedules.index"
     },
     {
-      "url": "/admin/academic-semesters",
-      "name": "Academic Semesters",
-      "icon": "menu-icon icon-base ri ri-calendar-2-line",
-      "slug": "admin.academic-semesters.index"
-    },
-    {
       "url": "/admin/attendance",
       "name": "Attendance",
       "icon": "menu-icon icon-base ri ri-check-double-line",
@@ -89,7 +98,7 @@
     },
     {
       "url": "/admin/reports",
-      "name": "Reports",
+      "name": "Attendance Reports",
       "icon": "menu-icon icon-base ri ri-file-chart-line",
       "slug": "admin.reports",
       "submenu": [
@@ -148,6 +157,73 @@
           "slug": "admin.reports.program"
         }
       ]
+    },
+    {
+      "menuHeader": "Users"
+    },
+    {
+      "url": "/admin/students",
+      "name": "Students",
+      "icon": "menu-icon icon-base ri ri-graduation-cap-line",
+      "slug": "admin.students.index"
+    },
+    {
+      "url": "/admin/lecturers",
+      "name": "Lecturers",
+      "icon": "menu-icon icon-base ri ri-user-star-line",
+      "slug": "admin.lecturers.index"
+    },
+    {
+      "name": "Staff",
+      "icon": "menu-icon icon-base ri ri-team-line",
+      "slug": "admin.users",
+      "submenu": [
+        {
+          "url": "/admin/users/hod",
+          "name": "HODs",
+          "icon": "menu-icon icon-base ri ri-user-settings-line",
+          "slug": "admin.users.hod"
+        },
+        {
+          "url": "/admin/users/dean",
+          "name": "Deans",
+          "icon": "menu-icon icon-base ri ri-user-star-line",
+          "slug": "admin.users.dean"
+        },
+        {
+          "url": "/admin/users/qa_director",
+          "name": "QA Staff",
+          "icon": "menu-icon icon-base ri ri-shield-check-line",
+          "slug": "admin.users.qa"
+        },
+        {
+          "url": "/admin/users/principal",
+          "name": "Principal",
+          "icon": "menu-icon icon-base ri ri-award-line",
+          "slug": "admin.users.principal"
+        },
+        {
+          "url": "/admin/users/registrar",
+          "name": "School Registrar",
+          "icon": "menu-icon icon-base ri ri-file-user-line",
+          "slug": "admin.users.registrar"
+        },
+        {
+          "url": "/admin/users/campus_chief",
+          "name": "Campus Chiefs",
+          "icon": "menu-icon icon-base ri ri-flag-line",
+          "slug": "admin.users.campus_chief"
+        }
+      ]
+    },
+    {
+      "url": "/admin/admins",
+      "name": "Admins",
+      "icon": "menu-icon icon-base ri ri-shield-user-line",
+      "slug": "admin.admins.index"
+    },
+    {
+      "menuHeader": "Reports"
     },
     {
       "menuHeader": "Settings"
