@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\Program;
 use App\Models\Group;
 use App\Models\AcademicSemester;
+use App\Models\CourseLeaderLog;
 use Illuminate\Http\Request;
 
 class CourseLeaderController extends Controller
@@ -16,6 +17,13 @@ class CourseLeaderController extends Controller
     {
         $query = CourseLeader::with(['student.user', 'program', 'group']);
 
+        if ($request->filled('filter_semester_id')) {
+            // Filter leaders who have schedules in the selected semester
+            $semId = $request->integer('filter_semester_id');
+            $query->whereHas('student.enrollments', function($q) use ($semId) {
+                $q->where('academic_semester_id', $semId);
+            });
+        }
         if ($request->filled('program_id')) {
             $query->where('program_id', $request->integer('program_id'));
         }
@@ -27,12 +35,14 @@ class CourseLeaderController extends Controller
         }
         if ($request->filled('search')) {
             $term = '%' . $request->search . '%';
-            $query->whereHas('student.user', function($q) use ($term) {
-                $q->where('name', 'like', $term)
-                  ->orWhere('email', 'like', $term);
-            })->orWhereHas('student', function($q) use ($term) {
-                $q->where('student_no', 'like', $term)
-                  ->orWhere('reg_no', 'like', $term);
+            $query->where(function($q) use ($term) {
+                $q->whereHas('student.user', function($q2) use ($term) {
+                    $q2->where('name', 'like', $term)
+                       ->orWhere('email', 'like', $term);
+                })->orWhereHas('student', function($q2) use ($term) {
+                    $q2->where('student_no', 'like', $term)
+                       ->orWhere('reg_no', 'like', $term);
+                });
             });
         }
 
@@ -42,7 +52,40 @@ class CourseLeaderController extends Controller
         $groups = Group::orderBy('name')->get();
         $semesters = AcademicSemester::orderByDesc('start_date')->get();
 
-        return view('admin.course-leaders.index', compact('leaders', 'programs', 'groups', 'semesters'));
+        // Fetch logs
+        $logsQuery = CourseLeaderLog::with(['student.user', 'schedule.course.programs', 'schedule.group', 'schedule.academicSemester'])
+            ->latest();
+
+        if ($request->filled('log_semester_id')) {
+            $logsQuery->whereHas('schedule', function($q) use ($request) {
+                $q->where('academic_semester_id', $request->integer('log_semester_id'));
+            });
+        }
+        if ($request->filled('log_program_id')) {
+            $logsQuery->whereHas('schedule', function($q) use ($request) {
+                $q->whereHas('course.programs', function($q2) use ($request) {
+                    $q2->where('programs.id', $request->integer('log_program_id'));
+                });
+            });
+        }
+        if ($request->filled('log_group_id')) {
+            $logsQuery->whereHas('schedule', function($q) use ($request) {
+                $q->where('group_id', $request->integer('log_group_id'));
+            });
+        }
+        if ($request->filled('log_action')) {
+            $logsQuery->where('action', $request->string('log_action'));
+        }
+        if ($request->filled('log_date_from')) {
+            $logsQuery->whereDate('created_at', '>=', $request->log_date_from);
+        }
+        if ($request->filled('log_date_to')) {
+            $logsQuery->whereDate('created_at', '<=', $request->log_date_to);
+        }
+
+        $logs = $logsQuery->paginate(15, ['*'], 'logs_page')->appends($request->query());
+
+        return view('admin.course-leaders.index', compact('leaders', 'programs', 'groups', 'semesters', 'logs'));
     }
 
     public function store(Request $request)

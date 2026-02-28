@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use App\Models\Venue;
 use App\Models\Lecturer;
 use Illuminate\Support\Facades\DB;
+use App\Models\CourseLeaderLog;
 
 class CourseLeaderController extends Controller
 {
@@ -119,6 +120,14 @@ class CourseLeaderController extends Controller
                 'is_cancelled' => true,
                 'attendance_status' => 'closed'
             ]);
+
+            CourseLeaderLog::create([
+                'student_id' => auth()->user()->student->id,
+                'schedule_id' => $schedule->id,
+                'action' => 'status_updated',
+                'details' => ['status' => 'cancelled']
+            ]);
+
             return back()->with('success', 'Class marked as not taught / cancelled.');
         }
 
@@ -137,6 +146,13 @@ class CourseLeaderController extends Controller
         $schedule->update([
             'venue_id' => $venue->id,
             'location' => $venue->fullName()
+        ]);
+
+        CourseLeaderLog::create([
+            'student_id' => auth()->user()->student->id,
+            'schedule_id' => $schedule->id,
+            'action' => 'venue_updated',
+            'details' => ['venue_id' => $venue->id, 'location' => $venue->fullName()]
         ]);
 
         return back()->with('success', 'Venue updated successfully.');
@@ -160,6 +176,13 @@ class CourseLeaderController extends Controller
         }
 
         $schedule->update($data);
+
+        CourseLeaderLog::create([
+            'student_id' => auth()->user()->student->id,
+            'schedule_id' => $schedule->id,
+            'action' => 'mode_updated',
+            'details' => $data
+        ]);
 
         $msg = $is_online ? 'Class switched to Online. Access code generated.' : 'Class switched to Physical.';
         return back()->with('success', $msg);
@@ -188,6 +211,17 @@ class CourseLeaderController extends Controller
             'actual_lecturer_id' => $request->actual_lecturer_id,
             'actual_start_at' => $startAt,
             'actual_end_at' => $endAt,
+        ]);
+
+        CourseLeaderLog::create([
+            'student_id' => auth()->user()->student->id,
+            'schedule_id' => $schedule->id,
+            'action' => 'actuals_logged',
+            'details' => [
+                'actual_lecturer_id' => $request->actual_lecturer_id,
+                'actual_start_at' => $startAt->toDateTimeString(),
+                'actual_end_at' => $endAt->toDateTimeString(),
+            ]
         ]);
 
         return back()->with('success', 'Actual class details logged successfully.');
