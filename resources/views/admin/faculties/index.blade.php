@@ -118,13 +118,28 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Campuses</label>
-                            <select class="form-select" id="fac_campus_ids" name="campus_ids[]" multiple
-                                size="{{ min(count($campuses), 5) }}">
-                                @foreach ($campuses as $campus)
-                                    <option value="{{ $campus->id }}">{{ $campus->name }}</option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted">Hold Ctrl/Cmd to select multiple campuses</small>
+                            <div class="dropdown">
+                                <button
+                                    class="btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center"
+                                    type="button" id="campusDropdownBtn" data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside" aria-expanded="false">
+                                    <span id="campusDropdownLabel" class="text-truncate">Select campuses...</span>
+                                    <i class="ri ri-arrow-down-s-line ms-2"></i>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2" aria-labelledby="campusDropdownBtn">
+                                    @foreach ($campuses as $campus)
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2 rounded py-2 px-3"
+                                                for="campus_{{ $campus->id }}" style="cursor:pointer">
+                                                <input class="form-check-input campus-checkbox m-0" type="checkbox"
+                                                    name="campus_ids[]" value="{{ $campus->id }}"
+                                                    id="campus_{{ $campus->id }}" onchange="updateCampusLabel()">
+                                                {{ $campus->name }}
+                                            </label>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="fac_is_active" name="is_active"
@@ -221,10 +236,10 @@
             document.getElementById('facultyFormMethod').value = 'POST';
             document.getElementById('fac_code').value = '';
             document.getElementById('fac_name').value = '';
-            // Clear multi-select
-            const sel = document.getElementById('fac_campus_ids');
-            for (let opt of sel.options) opt.selected = false;
+            // Clear checkboxes
+            document.querySelectorAll('.campus-checkbox').forEach(cb => cb.checked = false);
             document.getElementById('fac_is_active').checked = true;
+            updateCampusLabel();
         }
 
         function editFaculty(fac, campusIds) {
@@ -235,12 +250,23 @@
             document.getElementById('fac_code').value = fac.code;
             document.getElementById('fac_name').value = fac.name;
             document.getElementById('fac_is_active').checked = fac.is_active;
-            // Set multi-select
-            const sel = document.getElementById('fac_campus_ids');
-            for (let opt of sel.options) {
-                opt.selected = campusIds.includes(parseInt(opt.value));
-            }
+            // Set checkboxes
+            document.querySelectorAll('.campus-checkbox').forEach(cb => {
+                cb.checked = campusIds.includes(parseInt(cb.value));
+            });
+            updateCampusLabel();
             new bootstrap.Modal(document.getElementById('facultyModal')).show();
+        }
+
+        function updateCampusLabel() {
+            const checked = document.querySelectorAll('.campus-checkbox:checked');
+            const label = document.getElementById('campusDropdownLabel');
+            if (checked.length === 0) {
+                label.textContent = 'Select campuses...';
+            } else {
+                const names = Array.from(checked).map(cb => cb.closest('label').textContent.trim());
+                label.textContent = names.join(', ');
+            }
         }
     </script>
 @endsection

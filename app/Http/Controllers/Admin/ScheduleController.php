@@ -183,6 +183,7 @@ class ScheduleController extends Controller
         $data = $request->validate([
             'course_id' => ['required', 'exists:courses,id'],
             'group_id' => ['required', 'exists:groups,id'],
+            'lecturer_id' => ['nullable', 'exists:lecturers,id'],
             'series_id' => ['nullable', 'exists:schedule_series,id'],
             'academic_semester_id' => ['nullable', 'exists:academic_semesters,id'],
             'venue_id' => ['nullable', 'exists:venues,id'],
@@ -200,6 +201,16 @@ class ScheduleController extends Controller
             }
         }
 
+        // If no lecturer selected, try to auto-assign from teaching load
+        if (empty($data['lecturer_id'])) {
+            $assignment = \Illuminate\Support\Facades\DB::table('course_lecturer')
+                ->where('course_id', $data['course_id'])
+                ->first();
+            if ($assignment) {
+                $data['lecturer_id'] = $assignment->lecturer_id;
+            }
+        }
+
         // Auto-fill location text from venue for backward compatibility
         if (!empty($data['venue_id'])) {
             $venue = \App\Models\Venue::find($data['venue_id']);
@@ -214,14 +225,6 @@ class ScheduleController extends Controller
         $hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule');
         if ($hasPivot && $request->filled('lecturer_ids')) {
             $schedule->lecturers()->sync(array_values($request->input('lecturer_ids')));
-        }
-        // Fallback: if pivot doesn't exist, set single lecturer_id from first selection
-        if (!$hasPivot) {
-            $firstLecturerId = collect($request->input('lecturer_ids', []))->first();
-            if ($firstLecturerId) {
-                $schedule->lecturer_id = (int) $firstLecturerId;
-                $schedule->save();
-            }
         }
         return redirect()->route('admin.schedules.index')->with('success', 'Schedule created');
     }

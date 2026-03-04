@@ -81,7 +81,7 @@ elseif ($course->programs->isNotEmpty()) {
                             </td>
                             <td>
                                 <div class="d-flex flex-wrap gap-1 my-3">
-                                    @forelse ($course->lecturers as $lecturer)
+                                    @forelse ($course->lecturers->unique('id') as $lecturer)
                                         <span class="badge bg-label-primary">{{ $lecturer->name }}</span>
                                     @empty
                                         <span class="text-muted"><small>Not assigned</small></span>

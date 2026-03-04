@@ -168,6 +168,12 @@
       "slug": "admin.students.index"
     },
     {
+      "url": "/admin/enrollments",
+      "name": "Student Enrollments",
+      "icon": "menu-icon icon-base ri ri-article-line",
+      "slug": "admin.enrollments.index"
+    },
+    {
       "url": "/admin/lecturers",
       "name": "Lecturers",
       "icon": "menu-icon icon-base ri ri-user-star-line",

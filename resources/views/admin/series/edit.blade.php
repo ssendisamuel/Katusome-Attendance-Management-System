@@ -41,20 +41,65 @@
                             @enderror
                         </div>
 
+                        @php
+                            // Find program from teaching load (course_lecturer) instead of course_program
+                            $currentCourse = $series->course;
+                            $currentProgram = null;
+                            if ($currentCourse) {
+                                $tlRow = \Illuminate\Support\Facades\DB::table('course_lecturer')
+                                    ->where('course_id', $currentCourse->id)
+                                    ->first();
+                                if ($tlRow && $tlRow->program_code) {
+                                    $currentProgram = \App\Models\Program::where('code', $tlRow->program_code)->first();
+                                }
+                            }
+                            $preselectedProgramId = old('program', $currentProgram ? $currentProgram->id : '');
+                        @endphp
+
                         <div class="row">
-                            <div class="col-md-6 mb-3">
+                            <!-- Program -->
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Program</label>
+                                <select id="series-program" name="program" class="form-select select2"
+                                    data-placeholder="Select Program" required>
+                                    <option value="">Select Program</option>
+                                    @foreach ($programs as $program)
+                                        <option value="{{ $program->id }}" @selected($preselectedProgramId == $program->id)>
+                                            {{ $program->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <!-- Year of Study -->
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Year of Study</label>
+                                <select id="series-year" class="form-select select2" disabled>
+                                    <option value="all">All Years</option>
+                                    <option value="1">Year 1</option>
+                                    <option value="2">Year 2</option>
+                                    <option value="3">Year 3</option>
+                                    <option value="4">Year 4</option>
+                                    <option value="5">Year 5</option>
+                                </select>
+                            </div>
+
+                            <!-- Course -->
+                            <div class="col-md-4 mb-3">
                                 <label class="form-label">Course</label>
                                 <select id="series-edit-course" name="course_id" class="form-select select2" required>
-                                    @foreach ($courses as $course)
-                                        <option value="{{ $course->id }}"
-                                            data-lecturer-ids="{{ $course->lecturers->pluck('id')->implode(',') }}"
-                                            @selected(old('course_id', $series->course_id) == $course->id)>{{ $course->name }}</option>
-                                    @endforeach
+                                    <option value="{{ $series->course_id }}" selected>
+                                        {{ optional($series->course)->code }} - {{ optional($series->course)->name }}
+                                    </option>
                                 </select>
                                 @error('course_id')
                                     <div class="text-danger small">{{ $message }}</div>
                                 @enderror
                             </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Group -->
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Group</label>
                                 <select name="group_id" class="form-select select2" required>
@@ -66,6 +111,23 @@
                                 @error('group_id')
                                     <div class="text-danger small">{{ $message }}</div>
                                 @enderror
+                            </div>
+
+                            <!-- Lecturer (auto-assigned from Teaching Load) -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Lecturer <small class="text-muted">(auto-assigned from Teaching
+                                        Load)</small></label>
+                                <input type="hidden" id="series-lecturer" name="lecturer_id"
+                                    value="{{ old('lecturer_id', $series->lecturer_id) }}">
+                                <div id="lecturer-display" class="form-control bg-light" style="min-height:38px;">
+                                    @if ($series->lecturer)
+                                        {{ optional($series->lecturer)->title }}
+                                        {{ optional($series->lecturer->user)->name }}
+                                    @else
+                                        No lecturer assigned
+                                    @endif
+                                </div>
+                                <small class="text-muted" id="lecturer-hint">Auto-assigned from teaching load.</small>
                             </div>
                         </div>
                     </div>
@@ -216,26 +278,149 @@
     </div>
 @endsection
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const onlineSwitch = document.getElementById('is_online');
-        const codeDiv = document.getElementById('access-code-div');
+@section('vendor-style')
+    @vite(['resources/assets/vendor/libs/select2/select2.scss'])
+@endsection
 
-        function toggleCode() {
-            if (onlineSwitch.checked) {
-                codeDiv.style.display = 'block';
-                // Only auto-generate if empty
-                const input = codeDiv.querySelector('input');
-                if (!input.value) {
-                    input.value = Math.floor(1000 + Math.random() * 9000);
+@section('vendor-script')
+    @vite(['resources/assets/vendor/libs/select2/select2.js'])
+@endsection
+
+@section('page-script')
+    @vite(['resources/assets/js/forms-selects.js'])
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const programSelect = $('#series-program');
+            const yearSelect = $('#series-year');
+            const courseSelect = $('#series-edit-course');
+            const preselectedCourseId = "{{ $series->course_id }}";
+            const preselectedProgramId = "{{ $preselectedProgramId }}";
+
+            let allCourses = []; // Store fetched courses
+
+            function renderCourses(keepSelected = false) {
+                const selectedYear = yearSelect.val();
+                let filteredCourses = allCourses;
+
+                if (selectedYear !== 'all') {
+                    filteredCourses = allCourses.filter(c => String(c.year_of_study) === String(selectedYear));
                 }
-            } else {
-                codeDiv.style.display = 'none';
+
+                courseSelect.empty().append('<option value="">Select Course</option>');
+
+                if (filteredCourses.length > 0) {
+                    window._courseLecturers = {};
+                    filteredCourses.forEach(c => {
+                        window._courseLecturers[c.id] = c.lecturers || [];
+                        const isSelected = keepSelected && (String(c.id) === String(preselectedCourseId));
+                        const option = new Option(
+                            `${c.code} - ${c.name} (Yr ${c.year_of_study})`, c.id,
+                            isSelected, isSelected);
+                        courseSelect.append(option);
+                    });
+                    courseSelect.prop('disabled', false);
+                    if (keepSelected) {
+                        courseSelect.trigger('change');
+                    }
+                } else {
+                    courseSelect.append('<option value="">No courses match filters</option>');
+                    courseSelect.prop('disabled', true);
+                    courseSelect.trigger('change');
+                }
             }
-        }
-        if (onlineSwitch) {
-            onlineSwitch.addEventListener('change', toggleCode);
-            toggleCode(); // Init state
-        }
-    });
-</script>
+
+            function fetchCourses(programId, keepSelected = false) {
+                if (!programId) {
+                    allCourses = [];
+                    yearSelect.prop('disabled', true);
+                    courseSelect.empty().append('<option value="">Select Program First</option>').prop('disabled',
+                        true);
+                    return;
+                }
+
+                yearSelect.prop('disabled', false);
+
+                const url = "{{ route('admin.series.program-details', ':id') }}".replace(':id', programId);
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.courses && data.courses.length) {
+                            allCourses = data.courses;
+
+                            // If we have a preselected course, auto-select the year if initially loading
+                            if (keepSelected && preselectedCourseId) {
+                                const matchedCourse = allCourses.find(c => String(c.id) === String(
+                                    preselectedCourseId));
+                                if (matchedCourse) {
+                                    yearSelect.val(matchedCourse.year_of_study).trigger('change.select2');
+                                }
+                            }
+
+                            renderCourses(keepSelected);
+                        } else {
+                            allCourses = [];
+                            courseSelect.empty().append('<option value="">No courses found</option>');
+                            courseSelect.prop('disabled', true);
+                            courseSelect.trigger('change');
+                        }
+                    })
+                    .catch(err => console.error(err));
+            }
+
+            // Initial load
+            if (preselectedProgramId) {
+                fetchCourses(preselectedProgramId, true);
+            }
+
+            // On Program Change
+            programSelect.on('change', function() {
+                const pid = $(this).val();
+                fetchCourses(pid, false);
+            });
+
+            // On Year Change
+            yearSelect.on('change', function() {
+                renderCourses(false);
+            });
+
+            // Course Change: Auto-assign Lecturer from Teaching Load
+            courseSelect.on('change', function() {
+                const courseId = $(this).val();
+                const lecInput = document.getElementById('series-lecturer');
+                const lecDisplay = document.getElementById('lecturer-display');
+
+                if (!courseId || !window._courseLecturers) return;
+
+                const lecturers = window._courseLecturers[courseId] || [];
+                if (lecturers.length) {
+                    lecInput.value = lecturers[0].id;
+                    const names = lecturers.map(l => (l.title ? l.title + ' ' : '') + l.name);
+                    lecDisplay.innerHTML = '<strong>' + names[0] + '</strong>' +
+                        (names.length > 1 ? ' <span class="text-muted">+ ' + (names.length - 1) +
+                            ' more</span>' : '');
+                    document.getElementById('lecturer-hint').textContent = names.join(', ');
+                }
+            });
+
+            // Online Toggle
+            const onlineSwitch = document.getElementById('is_online');
+            const codeDiv = document.getElementById('access-code-div');
+
+            function toggleCode() {
+                if (onlineSwitch.checked) {
+                    codeDiv.style.display = 'block';
+                    const input = codeDiv.querySelector('input');
+                    if (!input.value) {
+                        input.value = Math.floor(1000 + Math.random() * 9000);
+                    }
+                } else {
+                    codeDiv.style.display = 'none';
+                }
+            }
+            if (onlineSwitch) {
+                onlineSwitch.addEventListener('change', toggleCode);
+                toggleCode(); // Init state
+            }
+        });
+    </script>
+@endsection

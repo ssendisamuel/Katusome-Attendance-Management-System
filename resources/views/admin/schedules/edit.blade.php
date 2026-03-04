@@ -41,13 +41,25 @@
                             </div>
 
                             @php
+                                // Find program from teaching load (course_lecturer) instead of course_program
                                 $currentCourse = $schedule->course;
-                                $currentProgram = $currentCourse ? $currentCourse->programs->first() : null;
+                                $currentProgram = null;
+                                if ($currentCourse) {
+                                    $tlRow = \Illuminate\Support\Facades\DB::table('course_lecturer')
+                                        ->where('course_id', $currentCourse->id)
+                                        ->first();
+                                    if ($tlRow && $tlRow->program_code) {
+                                        $currentProgram = \App\Models\Program::where(
+                                            'code',
+                                            $tlRow->program_code,
+                                        )->first();
+                                    }
+                                }
                                 $preselectedProgramId = old('program', $currentProgram ? $currentProgram->id : '');
                             @endphp
 
                             <!-- Program -->
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Program</label>
                                 <select id="schedule-program" name="program" class="form-select select2"
                                     data-placeholder="Select Program" required>
@@ -60,8 +72,21 @@
                                 </select>
                             </div>
 
+                            <!-- Year of Study -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Year of Study</label>
+                                <select id="schedule-year" class="form-select select2" disabled>
+                                    <option value="all">All Years</option>
+                                    <option value="1">Year 1</option>
+                                    <option value="2">Year 2</option>
+                                    <option value="3">Year 3</option>
+                                    <option value="4">Year 4</option>
+                                    <option value="5">Year 5</option>
+                                </select>
+                            </div>
+
                             <!-- Course -->
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Course</label>
                                 <select id="schedule-edit-course" name="course_id" class="form-select select2" required>
                                     <option value="{{ $schedule->course_id }}" selected>
@@ -74,7 +99,7 @@
                             </div>
 
                             <!-- Group -->
-                            <div class="col-md-12">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Group</label>
                                 <select name="group_id" class="form-select select2" required>
                                     @foreach ($groups as $group)
@@ -87,6 +112,23 @@
                                 @error('group_id')
                                     <div class="text-danger small">{{ $message }}</div>
                                 @enderror
+                            </div>
+
+                            <!-- Lecturer (auto-assigned from Teaching Load) -->
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Lecturer <small class="text-muted">(auto-assigned from Teaching
+                                        Load)</small></label>
+                                <input type="hidden" id="schedule-lecturer" name="lecturer_id"
+                                    value="{{ old('lecturer_id', $schedule->lecturer_id) }}">
+                                <div id="sched-lecturer-display" class="form-control bg-light" style="min-height:38px;">
+                                    @if ($schedule->lecturer)
+                                        {{ optional($schedule->lecturer)->title }}
+                                        {{ optional($schedule->lecturer->user)->name }}
+                                    @else
+                                        No lecturer assigned
+                                    @endif
+                                </div>
+                                <small class="text-muted" id="sched-lecturer-hint">Auto-assigned from teaching load.</small>
                             </div>
                         </div>
                     </div>
@@ -249,48 +291,115 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const programSelect = $('#schedule-program');
+            const yearSelect = $('#schedule-year');
             const courseSelect = $('#schedule-edit-course');
             const preselectedCourseId = "{{ $schedule->course_id }}";
             const preselectedProgramId = "{{ $preselectedProgramId }}";
 
+            let allCourses = []; // Store fetched courses
+
+            function renderCourses(keepSelected = false) {
+                const selectedYear = yearSelect.val();
+                let filteredCourses = allCourses;
+
+                if (selectedYear !== 'all') {
+                    filteredCourses = allCourses.filter(c => String(c.year_of_study) === String(selectedYear));
+                }
+
+                courseSelect.empty().append('<option value="">Select Course</option>');
+
+                if (filteredCourses.length > 0) {
+                    window._courseLecturers = {};
+                    filteredCourses.forEach(c => {
+                        window._courseLecturers[c.id] = c.lecturers || [];
+                        const isSelected = keepSelected && (String(c.id) === String(preselectedCourseId));
+                        const option = new Option(
+                            `${c.code} - ${c.name} (Yr ${c.year_of_study})`, c.id,
+                            isSelected, isSelected);
+                        courseSelect.append(option);
+                    });
+                    courseSelect.prop('disabled', false);
+                    if (keepSelected) {
+                        courseSelect.trigger('change');
+                    }
+                } else {
+                    courseSelect.append('<option value="">No courses match filters</option>');
+                    courseSelect.prop('disabled', true);
+                    courseSelect.trigger('change');
+                }
+            }
+
             function fetchCourses(programId, keepSelected = false) {
                 if (!programId) {
+                    allCourses = [];
+                    yearSelect.prop('disabled', true);
                     courseSelect.empty().append('<option value="">Select Program First</option>').prop('disabled',
                         true);
                     return;
                 }
 
+                yearSelect.prop('disabled', false);
+
                 const url = "{{ route('admin.series.program-details', ':id') }}".replace(':id', programId);
                 fetch(url)
                     .then(res => res.json())
                     .then(data => {
-                        courseSelect.empty().append('<option value="">Select Course</option>');
                         if (data.courses && data.courses.length) {
-                            data.courses.forEach(c => {
-                                const isSelected = keepSelected && (String(c.id) === String(
+                            allCourses = data.courses;
+
+                            // If we have a preselected course, auto-select the year if initially loading
+                            if (keepSelected && preselectedCourseId) {
+                                const matchedCourse = allCourses.find(c => String(c.id) === String(
                                     preselectedCourseId));
-                                const option = new Option(`${c.code} - ${c.name}`, c.id, isSelected,
-                                    isSelected);
-                                courseSelect.append(option);
-                            });
-                            courseSelect.prop('disabled', false);
-                            courseSelect.trigger('change');
+                                if (matchedCourse) {
+                                    yearSelect.val(matchedCourse.year_of_study).trigger('change.select2');
+                                }
+                            }
+
+                            renderCourses(keepSelected);
                         } else {
-                            courseSelect.append('<option value="">No courses found</option>');
+                            allCourses = [];
+                            courseSelect.empty().append('<option value="">No courses found</option>');
+                            courseSelect.prop('disabled', true);
+                            courseSelect.trigger('change');
                         }
                     })
                     .catch(err => console.error(err));
             }
 
-            // Initial load: if Program is selected, fetch courses and keep current Course selected
+            // Initial load
             if (preselectedProgramId) {
                 fetchCourses(preselectedProgramId, true);
             }
 
-            // On Change
+            // On Program Change
             programSelect.on('change', function() {
                 const pid = $(this).val();
                 fetchCourses(pid, false);
+            });
+
+            // On Year Change
+            yearSelect.on('change', function() {
+                renderCourses(false);
+            });
+
+            // Course Change: Auto-assign Lecturer from Teaching Load
+            courseSelect.on('change', function() {
+                const courseId = $(this).val();
+                const lecInput = document.getElementById('schedule-lecturer');
+                const lecDisplay = document.getElementById('sched-lecturer-display');
+
+                if (!courseId || !window._courseLecturers) return;
+
+                const lecturers = window._courseLecturers[courseId] || [];
+                if (lecturers.length) {
+                    lecInput.value = lecturers[0].id;
+                    const names = lecturers.map(l => (l.title ? l.title + ' ' : '') + l.name);
+                    lecDisplay.innerHTML = '<strong>' + names[0] + '</strong>' +
+                        (names.length > 1 ? ' <span class="text-muted">+ ' + (names.length - 1) +
+                            ' more</span>' : '');
+                    document.getElementById('sched-lecturer-hint').textContent = names.join(', ');
+                }
             });
 
             // Online Toggle Logic

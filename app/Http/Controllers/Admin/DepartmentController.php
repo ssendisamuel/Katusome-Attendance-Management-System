@@ -11,7 +11,7 @@ class DepartmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Department::with(['faculty.campus', 'hod'])->withCount(['courses', 'lecturers']);
+        $query = Department::with(['faculty', 'hod'])->withCount(['courses', 'lecturers']);
 
         if ($request->filled('search')) {
             $term = '%' . $request->search . '%';

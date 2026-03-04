@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Faculty;
 use App\Models\Program;
 use Illuminate\Http\Request;
 
@@ -10,7 +11,8 @@ class ProgramController extends Controller
 {
     public function index(\Illuminate\Http\Request $request)
     {
-        $query = Program::withCount(['groups', 'courses', 'students']);
+        $query = Program::with(['faculty.campuses'])->withCount('courses');
+
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
             $query->where(function ($q) use ($term) {
@@ -18,35 +20,35 @@ class ProgramController extends Controller
                   ->orWhere('code', 'like', $term);
             });
         }
-        $programs = $query->orderBy('name')->paginate(15)->appends($request->query());
+
+        if ($request->filled('faculty_id')) {
+            $query->where('faculty_id', $request->integer('faculty_id'));
+        }
+
+        // Sort by faculty name, then programme name
+        $programs = $query->orderByRaw('COALESCE(faculty_id, 999999)')
+            ->orderBy('name')
+            ->get();
+
+        $faculties = Faculty::where('is_active', true)->orderBy('name')->get();
 
         if ($request->wantsJson() || $request->input('format') === 'json') {
-            $rows = $query->orderBy('name')->get();
             return response()->json([
-                'title' => 'Programs',
-                'columns' => ['Name', 'Code', 'Groups', 'Courses', 'Students'],
-                'rows' => $rows->map(function ($p) {
-                    return [$p->name, $p->code, $p->groups_count, $p->courses_count, $p->students_count];
+                'title' => 'Programmes',
+                'columns' => ['Name', 'Code', 'Faculty', 'Duration', 'Courses'],
+                'rows' => $programs->map(function ($p) {
+                    return [$p->name, $p->code, $p->faculty?->code ?? '—', $p->duration_years . ' yr(s)', $p->courses_count];
                 }),
                 'meta' => [
                     'generated_at' => now()->format('d M Y H:i'),
-                    'filters' => [
-                        'search' => $request->input('search'),
-                    ],
+                    'filters' => ['search' => $request->input('search'), 'faculty_id' => $request->input('faculty_id')],
                     'user' => optional($request->user())->name,
                 ],
-                'summary' => [
-                    'total' => $rows->count(),
-                ],
+                'summary' => ['total' => $programs->count()],
             ]);
         }
 
-        return view('admin.programs.index', compact('programs'));
-    }
-
-    public function create()
-    {
-        return view('admin.programs.create');
+        return view('admin.programs.index', compact('programs', 'faculties'));
     }
 
     public function store(Request $request)
@@ -54,15 +56,12 @@ class ProgramController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50', 'unique:programs,code'],
+            'faculty_id' => ['nullable', 'exists:faculties,id'],
+            'duration_years' => ['required', 'integer', 'min:1', 'max:7'],
         ]);
 
         Program::create($data);
-        return redirect()->route('admin.programs.index')->with('success', 'Program created');
-    }
-
-    public function edit(Program $program)
-    {
-        return view('admin.programs.edit', compact('program'));
+        return redirect()->route('admin.programs.index')->with('success', 'Programme created successfully.');
     }
 
     public function update(Request $request, Program $program)
@@ -70,15 +69,22 @@ class ProgramController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50', 'unique:programs,code,' . $program->id],
+            'faculty_id' => ['nullable', 'exists:faculties,id'],
+            'duration_years' => ['required', 'integer', 'min:1', 'max:7'],
         ]);
 
         $program->update($data);
-        return redirect()->route('admin.programs.index')->with('success', 'Program updated');
+        return redirect()->route('admin.programs.index')->with('success', 'Programme updated successfully.');
     }
 
     public function destroy(Program $program)
     {
+        if ($program->courses()->exists()) {
+            return redirect()->route('admin.programs.index')
+                ->with('error', 'Cannot delete programme with assigned courses. Remove course assignments first.');
+        }
+
         $program->delete();
-        return redirect()->route('admin.programs.index')->with('success', 'Program deleted');
+        return redirect()->route('admin.programs.index')->with('success', 'Programme deleted successfully.');
     }
 }

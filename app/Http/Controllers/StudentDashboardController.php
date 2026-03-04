@@ -52,61 +52,22 @@ class StudentDashboardController extends Controller
         $semesterId = $enrollment->academic_semester_id;
         $activeSemester = $enrollment->academicSemester;
 
-        // Extract semester number (e.g. "Semester 2" -> "2")
-        $semesterNumber = null;
-        if (preg_match('/(\d+)/', $activeSemester->semester, $matches)) {
-             $semesterNumber = $matches[1];
-        }
-        $validSemesterValues = array_filter([$activeSemester->semester, $semesterNumber]);
+        // Extract semester name (e.g. "Semester 2")
+        $semesterName = $activeSemester->semester;
 
-        // DEBUG: Write to a separate log file
-        $logData = "--------------------------------------------------\n";
-        $logData .= "TIME: " . now()->toDateTimeString() . "\n";
-        $logData .= "STUDENT ID: " . $student->id . "\n";
-        $logData .= "GROUP ID: " . $student->group_id . "\n";
-        $logData .= "ENROLLMENT: Program {$enrollment->program_id}, Year {$enrollment->year_of_study}\n";
-        $logData .= "SEMESTER: ID {$semesterId}, Name '{$activeSemester->semester}', Number '{$semesterNumber}'\n";
-        $logData .= "VALID SEMESTERS: " . json_encode(array_values($validSemesterValues)) . "\n";
+        // Get course IDs from PROGRAM STRUCTURE for this student's program + year + semester
+        $enrolledCourseIds = \Illuminate\Support\Facades\DB::table('course_program')
+            ->where('program_id', $enrollment->program_id)
+            ->where('year_of_study', $enrollment->year_of_study)
+            ->where('semester_offered', $semesterName)
+            ->pluck('course_id');
 
-        // Check RAW schedules for the group (before course filter)
-        $rawSchedules = Schedule::where('group_id', $student->group_id)
-            ->where('academic_semester_id', $semesterId)
-            ->with('course')
-            ->get();
-
-        $logData .= "RAW SCHED COUNT: " . $rawSchedules->count() . "\n";
-        foreach ($rawSchedules as $s) {
-            $logData .= " - SchID {$s->id}, Course: [{$s->course->code}] {$s->course->name} (ID: {$s->course->id})\n";
-            // Check pivot for this course
-            $pivots = \Illuminate\Support\Facades\DB::table('course_program')
-                ->where('program_id', $enrollment->program_id)
-                ->where('course_id', $s->course->id)
-                ->get();
-            foreach ($pivots as $p) {
-                $logData .= "   -> Pivot: Prog {$p->program_id}, Year {$p->year_of_study}, Sem '{$p->semester_offered}'\n";
-            }
-        }
-
-        // 1. Get schedules for the student's CURRENT group (WITH FILTER)
+        // 1. Get schedules for the student's CURRENT group + semester, filtered by enrolled courses
         $groupSchedules = Schedule::with(['course', 'lecturer'])
             ->where('group_id', $student->group_id)
             ->where('academic_semester_id', $semesterId)
-            ->whereHas('course.programs', function ($q) use ($enrollment, $validSemesterValues) {
-                $q->where('programs.id', $enrollment->program_id)
-                  ->where('course_program.year_of_study', $enrollment->year_of_study)
-                  ->where(function($qq) use ($validSemesterValues) {
-                       $qq->whereIn('course_program.semester_offered', $validSemesterValues)
-                          ->orWhere('course_program.semester_offered', 'Both');
-                  });
-            })
+            ->whereIn('course_id', $enrolledCourseIds)
             ->get();
-
-        $logData .= "FILTERED SCHED COUNT: " . $groupSchedules->count() . "\n";
-        foreach ($groupSchedules as $s) {
-             $logData .= " - MATCHED: SchID {$s->id}, Course: [{$s->course->code}] {$s->course->name}\n";
-        }
-
-        file_put_contents(storage_path('logs/debug_dashboard.txt'), $logData, FILE_APPEND);
 
         // 1b. Get schedules for RETAKE/EXTRA courses registered this semester
         $retakeRegistrations = $student->extraCourses()
@@ -519,22 +480,19 @@ class StudentDashboardController extends Controller
         $semesterId = $enrollment->academic_semester_id;
 
         $activeSemester = \App\Models\AcademicSemester::find($semesterId);
-        $semesterNumber = null;
-        if ($activeSemester && preg_match('/(\d+)/', $activeSemester->semester, $matches)) {
-             $semesterNumber = $matches[1];
-        }
-        $validSemesterValues = array_filter([$activeSemester ? $activeSemester->semester : null, $semesterNumber]);
+        // Extract semester name
+        $semesterName = $activeSemester ? $activeSemester->semester : 'Semester 2';
+
+        // Get course IDs from PROGRAM STRUCTURE for this student's program + year + semester
+        $enrolledCourseIds = \Illuminate\Support\Facades\DB::table('course_program')
+            ->where('program_id', $enrollment->program_id)
+            ->where('year_of_study', $enrollment->year_of_study)
+            ->where('semester_offered', $semesterName)
+            ->pluck('course_id');
 
         $courseIds = Schedule::where('group_id', $student->group_id)
             ->where('academic_semester_id', $semesterId)
-            ->whereHas('course.programs', function ($q) use ($enrollment, $validSemesterValues) {
-                $q->where('programs.id', $enrollment->program_id)
-                  ->where('course_program.year_of_study', $enrollment->year_of_study)
-                  ->where(function($qq) use ($validSemesterValues) {
-                       $qq->whereIn('course_program.semester_offered', $validSemesterValues)
-                          ->orWhere('course_program.semester_offered', 'Both');
-                  });
-            })
+            ->whereIn('course_id', $enrolledCourseIds)
             ->pluck('course_id');
 
         $retakeCourseIds = $student->extraCourses()
@@ -633,28 +591,22 @@ class StudentDashboardController extends Controller
         if (!$enrollment) {
             return redirect()->route('student.dashboard')->with('info', 'Please enroll first.');
         }
-
-        // Fetch courses for the student's program, year, and semester
-        // We need to match the course's semester_offered with the current semester
+        // Get course IDs from teaching load for this student's program + year + semester
+        $semesterId = $enrollment->academic_semester_id;
         $activeSemester = $enrollment->academicSemester;
-        $semesterId = $activeSemester->id;
 
-        // Extract semester number if possible (e.g. "Semester 2" -> "2")
-        $semesterNumber = null;
-        if (preg_match('/(\d+)/', $activeSemester->semester, $matches)) {
-             $semesterNumber = $matches[1];
-        }
+        // Extract semester name
+        $semesterName = $activeSemester ? $activeSemester->semester : 'Semester 2';
 
-        // Prepare valid semester values to check against (Raw string OR extracted number)
-        $validSemesterValues = array_filter([$activeSemester->semester, $semesterNumber]);
+        // Get course IDs from PROGRAM STRUCTURE for this student's program + year + semester
+        $enrolledCourseIds = \Illuminate\Support\Facades\DB::table('course_program')
+            ->where('program_id', $enrollment->program_id)
+            ->where('year_of_study', $enrollment->year_of_study)
+            ->where('semester_offered', $semesterName)
+            ->pluck('course_id');
 
-        $courses = \App\Models\Course::whereHas('programs', function ($q) use ($enrollment, $validSemesterValues) {
-            $q->where('programs.id', $enrollment->program_id)
-              ->where('course_program.year_of_study', $enrollment->year_of_study)
-              ->whereIn('course_program.semester_offered', $validSemesterValues);
-        })->with(['programs' => function($q) use ($enrollment) {
-             $q->where('programs.id', $enrollment->program_id);
-        }])->get();
+        // Show ALL courses from teaching load for this student's program + year + semester
+        $courses = \App\Models\Course::whereIn('id', $enrolledCourseIds)->get();
 
         // MERGE: Add Retake/Missed/Extra courses
         $extraCourses = $student->extraCourses()

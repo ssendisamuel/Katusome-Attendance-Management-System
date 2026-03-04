@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\Lecturer;
 use App\Models\GenerationAudit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ScheduleSeriesController extends Controller
@@ -38,22 +39,53 @@ class ScheduleSeriesController extends Controller
 
     public function getProgramDetails(\App\Models\Program $program)
     {
-        // Load courses with pivot data
-        $program->load(['courses' => function($q) {
-            $q->orderBy('code');
-        }]);
+        $activeSemester = \App\Models\AcademicSemester::where('is_active', true)->first();
+        $semesterName = 'Semester 2'; // Fallback
+        if ($activeSemester) {
+            $semesterName = $activeSemester->semester;
+        }
+
+        // Fetch courses from the program structure (course_program) for the active semester
+        $courses = \App\Models\Course::whereHas('programs', function ($q) use ($program, $semesterName) {
+            $q->where('programs.id', $program->id)
+              ->where('course_program.semester_offered', $semesterName);
+        })
+        ->with(['programs' => function ($q) use ($program) {
+            $q->where('programs.id', $program->id);
+        }, 'lecturers' => function ($q) {
+            // Include lecturers. The relationship definition naturally handles grouping/semester if configured,
+            // or we just return all currently assigned lecturers for that course context.
+            $q->select('lecturers.id', 'lecturers.title', 'lecturers.designation', 'lecturers.user_id')
+              ->with('user:id,name');
+        }])
+        ->orderBy('code')
+        ->get();
+
+        // Map the result to match the JSON structure expected by the frontend
+        $mappedCourses = $courses->map(function ($course) {
+            // We filtered programs to just this one, so first() is the pivot info
+            $pivot = $course->programs->first()->pivot;
+
+            return [
+                'id' => $course->id,
+                'code' => $course->code,
+                'name' => $course->name,
+                'year_of_study' => $pivot->year_of_study,
+                'lecturers' => $course->lecturers->map(function ($l) {
+                    return [
+                        'id' => $l->id,
+                        'title' => $l->title ?? '',
+                        'name' => $l->user->name ?? '',
+                        'designation' => $l->designation ?? '',
+                        'study_group' => $l->pivot->study_group ?? '',
+                    ];
+                })->unique('id')->values(),
+            ];
+        })->sortBy('year_of_study')->values();
 
         return response()->json([
             'code' => $program->code,
-            'courses' => $program->courses->map(function($c) {
-                return [
-                    'id' => $c->id,
-                    'code' => $c->code,
-                    'name' => $c->name,
-                    'year_of_study' => $c->pivot->year_of_study, // assuming pivot is loaded
-                    // Semester logic if needed
-                ];
-            })
+            'courses' => $mappedCourses,
         ]);
     }
 
@@ -98,17 +130,14 @@ class ScheduleSeriesController extends Controller
             }
         }
 
-        // Auto-assign lecturer from Course
-        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
-        if ($course && $course->lecturers->isNotEmpty()) {
-            // Assign the first lecturer found
-            $data['lecturer_id'] = $course->lecturers->first()->id;
-        }
-
-        // Auto-assign lecturer from Course
-        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
-        if ($course && $course->lecturers->isNotEmpty()) {
-            $data['lecturer_id'] = $course->lecturers->first()->id;
+        // If no lecturer was explicitly selected, try to auto-assign from teaching load
+        if (empty($data['lecturer_id'])) {
+            $assignment = DB::table('course_lecturer')
+                ->where('course_id', $data['course_id'])
+                ->first();
+            if ($assignment) {
+                $data['lecturer_id'] = $assignment->lecturer_id;
+            }
         }
 
         ScheduleSeries::create($data);
@@ -117,12 +146,12 @@ class ScheduleSeriesController extends Controller
 
     public function edit(ScheduleSeries $series)
     {
-        // Eager-load lecturers assigned to courses for possible preselection
         $courses = Course::with('lecturers')->get();
         $groups = Group::all();
         $lecturers = Lecturer::all();
         $semesters = \App\Models\AcademicSemester::orderByDesc('year')->orderByDesc('semester')->get();
-        return view('admin.series.edit', compact('series', 'courses', 'groups', 'lecturers', 'semesters'));
+        $programs = \App\Models\Program::orderBy('name')->get();
+        return view('admin.series.edit', compact('series', 'courses', 'programs', 'groups', 'lecturers', 'semesters'));
     }
 
     public function update(Request $request, ScheduleSeries $series)
@@ -151,13 +180,14 @@ class ScheduleSeriesController extends Controller
         $data['is_recurring'] = $request->has('is_recurring');
         $data['requires_clock_out'] = $request->has('requires_clock_out');
 
-        // Auto-assign lecturer if course changes or if not set
-        $course = \App\Models\Course::with('lecturers')->find($data['course_id']);
-        if ($course && $course->lecturers->isNotEmpty()) {
-             // Logic: If course changed, definitely update lecturer.
-             // If course is same, we might want to keep existing lecturer if still valid?
-             // For now, enforcing the "Course's First Lecturers" rule as per user request implies strictly following course.
-            $data['lecturer_id'] = $course->lecturers->first()->id;
+        // If no lecturer explicitly selected, try from teaching load
+        if (empty($data['lecturer_id'])) {
+            $assignment = DB::table('course_lecturer')
+                ->where('course_id', $data['course_id'])
+                ->first();
+            if ($assignment) {
+                $data['lecturer_id'] = $assignment->lecturer_id;
+            }
         }
 
         $series->update($data);

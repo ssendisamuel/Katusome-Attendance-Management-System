@@ -54,15 +54,25 @@ class StudentAttendanceController extends Controller
         }
         $validSemesterValues = array_filter([$activeSemester ? $activeSemester->semester : null, $semesterNumber]);
 
-        // 1. Get schedules for the student's CURRENT group
+        // Get program code for teaching load lookup
+        $program = \App\Models\Program::find($enrollment->program_id);
+        $programCode = $program ? $program->code : '';
+        $semNum = $semesterNumber ?? '2';
+
+        // Get course IDs from teaching load for this student's program + year + semester
+        $enrolledCourseIds = \Illuminate\Support\Facades\DB::table('course_lecturer')
+            ->where('program_code', $programCode)
+            ->where('year_of_study', $enrollment->year_of_study)
+            ->where('academic_year', $activeSemester->year)
+            ->where('semester', $semNum)
+            ->distinct()
+            ->pluck('course_id');
+
+        // 1. Get schedules for the student's CURRENT group, filtered by enrolled courses
         $groupSchedules = Schedule::with(['course', 'lecturer'])
             ->where('group_id', $student->group_id)
             ->where('academic_semester_id', $semesterId)
-            ->whereHas('course.programs', function ($q) use ($enrollment, $validSemesterValues) {
-                $q->where('programs.id', $enrollment->program_id)
-                  ->where('course_program.year_of_study', $enrollment->year_of_study)
-                  ->whereIn('course_program.semester_offered', $validSemesterValues);
-            })
+            ->whereIn('course_id', $enrolledCourseIds)
             ->get();
 
         // 1b. Get schedules for RETAKE/EXTRA courses registered this semester

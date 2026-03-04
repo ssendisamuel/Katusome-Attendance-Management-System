@@ -39,6 +39,21 @@
                                     <strong>Registration No.:</strong> <span
                                         class="badge bg-info">{{ $student->reg_no ?? 'N/A' }}</span>
                                 </div>
+                                @php
+                                    $dispProgram = $enrollment?->program ?? $student->program;
+                                    $dispFaculty = $dispProgram?->faculty;
+                                    $dispCampusName =
+                                        $enrollment?->campus?->name ??
+                                        (optional($dispFaculty?->campuses?->first())->name ?? 'Main Campus');
+                                @endphp
+                                @if ($dispFaculty)
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Faculty:</strong> {{ $dispFaculty->name }}
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Campus:</strong> {{ $dispCampusName }}
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -68,6 +83,20 @@
                             <input type="text" class="form-control" value="{{ optional($enrollment->program)->name }}"
                                 readonly disabled>
                         </div>
+
+                        @if ($enrollment->program && $enrollment->program->faculty)
+                            <div class="mb-3">
+                                <label class="form-label">Faculty</label>
+                                <input type="text" class="form-control"
+                                    value="{{ $enrollment->program->faculty->name }}" readonly disabled>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Campus</label>
+                                <input type="text" class="form-control"
+                                    value="{{ $enrollment->campus?->name ?? (optional($enrollment->program->faculty->campuses->first())->name ?? 'Main Campus') }}"
+                                    readonly disabled>
+                            </div>
+                        @endif
 
                         <div class="mb-3">
                             <label class="form-label">Group</label>
@@ -125,11 +154,11 @@
                         <div class="mb-3">
                             <label class="form-label" for="program_id">Program <span class="text-danger">*</span></label>
                             <select class="form-select @error('program_id') is-invalid @enderror" name="program_id"
-                                id="program_id" required>
+                                id="program_id" required onchange="onProgramChange()">
                                 <option value="">Select Program</option>
                                 @foreach ($programs as $program)
                                     <option value="{{ $program->id }}"
-                                        {{ old('program_id', $enrollment->program_id ?? $student->program_id) == $program->id ? 'selected' : '' }}>
+                                        {{ old('program_id', $enrollment?->program_id ?? $student->program_id) == $program->id ? 'selected' : '' }}>
                                         {{ $program->name }}
                                     </option>
                                 @endforeach
@@ -138,6 +167,31 @@
                             @error('program_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Faculty <small class="text-muted">(auto)</small></label>
+                                <input type="text" id="faculty_display" class="form-control"
+                                    placeholder="Auto from Program" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="campus_id">Campus <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select @error('campus_id') is-invalid @enderror" name="campus_id"
+                                    id="campus_id" required>
+                                    <option value="">Select Campus</option>
+                                    @foreach ($campuses as $c)
+                                        <option value="{{ $c->id }}"
+                                            {{ old('campus_id', $enrollment?->campus_id) == $c->id ? 'selected' : '' }}>
+                                            {{ $c->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('campus_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -213,4 +267,58 @@
             });
         </script>
     @endif
+@endsection
+
+@section('page-script')
+    <script>
+        const programMap = @json($programMap);
+
+        function onProgramChange() {
+            var pSel = document.getElementById('program_id');
+            var pid = pSel.value;
+            var info = programMap[pid];
+            var fDisp = document.getElementById('faculty_display');
+            var cSel = document.getElementById('campus_id');
+            var currentVal = cSel.value;
+
+            if (!info) {
+                fDisp.value = '';
+                // Hide all campuses except placeholder
+                cSel.querySelectorAll('option').forEach(o => {
+                    if (o.value) o.style.display = 'none';
+                });
+                return;
+            }
+
+            fDisp.value = info.faculty_name;
+
+            var campusIds = info.campuses.map(c => c.id.toString());
+            var isCurrentValid = false;
+
+            // Show matching, hide others
+            cSel.querySelectorAll('option').forEach(function(o) {
+                if (!o.value) {
+                    o.style.display = '';
+                    return;
+                }
+                var valid = campusIds.includes(o.value);
+                o.style.display = valid ? '' : 'none';
+                if (valid && (o.value === currentVal)) {
+                    isCurrentValid = true;
+                }
+            });
+
+            // Sync values
+            if (campusIds.length === 1) {
+                cSel.value = campusIds[0];
+            } else if (!isCurrentValid && currentVal !== "") {
+                cSel.value = "";
+            }
+        }
+
+        // Run on page load to set faculty/campus based on pre-selected program
+        document.addEventListener('DOMContentLoaded', function() {
+            onProgramChange();
+        });
+    </script>
 @endsection

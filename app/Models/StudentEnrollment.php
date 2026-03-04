@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Campus;
 
 class StudentEnrollment extends Model
 {
@@ -15,6 +16,7 @@ class StudentEnrollment extends Model
         'year_of_study',
         'program_id',
         'group_id',
+        'campus_id',
         'enrolled_at',
     ];
 
@@ -41,5 +43,10 @@ class StudentEnrollment extends Model
     public function group()
     {
         return $this->belongsTo(Group::class);
+    }
+
+    public function campus()
+    {
+        return $this->belongsTo(Campus::class);
     }
 }

@@ -3,87 +3,76 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Lecturer;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Mail\WelcomeUserMail;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 class LecturerController extends Controller
 {
-    public function index(\Illuminate\Http\Request $request)
+    public function index(Request $request)
     {
-        $query = Lecturer::query();
+        $query = Lecturer::with(['user', 'department'])->withCount('courses');
 
-        // Search by lecturer identity
         if ($request->filled('search')) {
             $term = '%' . trim($request->input('search')) . '%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn($qq) => $qq->where('name', 'like', $term)
                                                  ->orWhere('email', 'like', $term))
-                  ->orWhere('phone', 'like', $term);
+                  ->orWhere('phone', 'like', $term)
+                  ->orWhere('title', 'like', $term)
+                  ->orWhere('designation', 'like', $term);
             });
         }
 
-        // Order and paginate
+        if ($request->filled('department_id')) {
+            $query->where('department_id', $request->integer('department_id'));
+        }
+
         $lecturers = $query->orderBy(
-            DB::raw('(select name from users where users.id = lecturers.user_id)'),
-            'asc'
-        )->paginate(15)->appends($request->query());
+            DB::raw('(select name from users where users.id = lecturers.user_id)'), 'asc'
+        )->get();
+
+        $departments = Department::where('is_active', true)->orderBy('name')->get();
 
         if ($request->wantsJson() || $request->input('format') === 'json') {
-            $rows = $query->orderBy(
-                DB::raw('(select name from users where users.id = lecturers.user_id)'),
-                'asc'
-            )->get();
             return response()->json([
                 'title' => 'Lecturers',
-                'columns' => ['Name', 'Email', 'Phone'],
-                'rows' => $rows->map(function ($l) {
-                    $name = optional($l->user)->name ?? $l->name;
-                    $email = optional($l->user)->email ?? $l->email;
-                    return [$name, $email, $l->phone];
-                }),
-                'meta' => [
-                    'generated_at' => now()->format('d M Y H:i'),
-                    'filters' => [
-                        'search' => $request->input('search'),
-                    ],
-                    'user' => optional($request->user())->name,
-                ],
-                'summary' => [
-                    'total' => $rows->count(),
-                ],
+                'columns' => ['Title', 'Name', 'Designation', 'Email', 'Phone', 'Department'],
+                'rows' => $lecturers->map(fn($l) => [
+                    $l->title ?? '—',
+                    optional($l->user)->name ?? '—',
+                    $l->designation ?? '—',
+                    optional($l->user)->email ?? '—',
+                    $l->phone ?? '—',
+                    $l->department?->code ?? '—',
+                ]),
+                'meta' => ['generated_at' => now()->format('d M Y H:i'), 'user' => optional($request->user())->name],
+                'summary' => ['total' => $lecturers->count()],
             ]);
         }
 
-        return view('admin.lecturers.index', compact('lecturers'));
-    }
-
-    public function create()
-    {
-        return view('admin.lecturers.create');
+        return view('admin.lecturers.index', compact('lecturers', 'departments'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email', 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'initial_password' => ['nullable', 'string', 'min:8'],
-        ], [
-            'email.regex' => 'Email must be a mubs.ac.ug address.',
+            'title' => ['nullable', 'string', 'max:20'],
+            'designation' => ['nullable', 'string', 'max:50'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
-        // Create canonical user record for lecturer
-        $initial = $data['initial_password'] ?? 'password';
+        $initial = 'password';
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
@@ -92,46 +81,34 @@ class LecturerController extends Controller
             'role' => 'lecturer',
         ]);
 
-        // Build reset URL and login URL for welcome email
-        $token = Password::broker()->createToken($user);
-        $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
-        $loginUrl = url(route('login', [], false));
-        // Send welcome email immediately via SMTP (no queue)
-        try {
-            Mail::to($user->email)->send(new WelcomeUserMail($user, $initial, $resetUrl, $loginUrl));
-            Log::info('Welcome mail sent', ['email' => $user->email]);
-        } catch (\Throwable $e) {
-            Log::warning('Sending welcome mail failed for lecturer', ['email' => $user->email, 'error' => $e->getMessage()]);
-        }
-
         Lecturer::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
+            'title' => $data['title'] ?? null,
+            'designation' => $data['designation'] ?? null,
+            'department_id' => $data['department_id'] ?? null,
         ]);
-        return redirect()->route('admin.lecturers.index')
-            ->with('success', 'Lecturer created')
-            ->with('info', 'Welcome email sent');
-    }
 
-    public function edit(Lecturer $lecturer)
-    {
-        return view('admin.lecturers.edit', compact('lecturer'));
+        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer created successfully.');
     }
 
     public function update(Request $request, Lecturer $lecturer)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($lecturer->user)->id, 'regex:/^[^@\s]+@mubs\.ac\.ug$/i'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . optional($lecturer->user)->id],
             'phone' => ['nullable', 'string', 'max:50'],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
-            'must_change_password' => ['nullable', 'boolean'],
-        ], [
-            'email.regex' => 'Email must be a mubs.ac.ug address.',
+            'title' => ['nullable', 'string', 'max:20'],
+            'designation' => ['nullable', 'string', 'max:50'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
-        // Ensure canonical user exists and is updated
-        if (!$lecturer->user) {
+        if ($lecturer->user) {
+            $lecturer->user->update([
+                'name' => $data['name'],
+                'email' => $data['email'],
+            ]);
+        } else {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -139,48 +116,93 @@ class LecturerController extends Controller
                 'must_change_password' => true,
                 'role' => 'lecturer',
             ]);
-            $token = Password::broker()->createToken($user);
-            $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
-            $loginUrl = url(route('login', [], false));
-            // Send welcome email immediately via SMTP
-            try {
-                Mail::to($user->email)->send(new WelcomeUserMail($user, 'password', $resetUrl, $loginUrl));
-                Log::info('Welcome mail sent when creating lecturer user', ['email' => $user->email]);
-            } catch (\Throwable $e) {
-                Log::warning('Sending welcome mail failed when creating lecturer user', ['email' => $user->email, 'error' => $e->getMessage()]);
-            }
-            $lecturer->user()->associate($user);
-        } else {
-            $lecturer->user->name = $data['name'];
-            $lecturer->user->email = $data['email'];
-            if (!empty($data['password'])) {
-                $lecturer->user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
-                // If admin wants to enforce change, set flag; default to false
-                $lecturer->user->must_change_password = (bool)($data['must_change_password'] ?? false);
-            } else {
-                // Update must_change_password when checkbox is toggled without changing password
-                if ($request->has('must_change_password')) {
-                    $lecturer->user->must_change_password = (bool)($data['must_change_password'] ?? false);
-                }
-            }
-            $lecturer->user->save();
+            $lecturer->user_id = $user->id;
         }
 
-        $lecturer->phone = $data['phone'] ?? null;
-        $lecturer->save();
-        return redirect()->route('admin.lecturers.index')
-            ->with('success', 'Lecturer updated')
-            ->with('info', 'Welcome email sent');
+        $lecturer->update([
+            'phone' => $data['phone'] ?? null,
+            'title' => $data['title'] ?? null,
+            'designation' => $data['designation'] ?? null,
+            'department_id' => $data['department_id'] ?? null,
+        ]);
+
+        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer updated successfully.');
     }
 
     public function destroy(Lecturer $lecturer)
     {
+        if ($lecturer->courses()->exists()) {
+            return redirect()->route('admin.lecturers.index')
+                ->with('error', 'Cannot delete lecturer with teaching assignments. Remove assignments first.');
+        }
+
         $user = $lecturer->user;
         $lecturer->delete();
         if ($user) {
             $user->delete();
         }
-        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer deleted');
+        return redirect()->route('admin.lecturers.index')->with('success', 'Lecturer deleted successfully.');
+    }
+
+    /**
+     * Bulk import lecturers from CSV.
+     */
+    public function bulkImport(Request $request)
+    {
+        $request->validate([
+            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+        ]);
+
+        $file = $request->file('csv_file');
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        $header = array_map('strtolower', array_map('trim', array_shift($rows)));
+
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            if (count($row) < count($header)) continue;
+            $record = array_combine($header, $row);
+
+            $name = trim($record['name'] ?? '');
+            $email = trim($record['email'] ?? '');
+            if (!$name) continue;
+
+            // Auto-generate email if not provided
+            if (!$email) {
+                $email = $this->generateEmail($name);
+            }
+
+            // Skip if email exists
+            if (User::where('email', $email)->exists()) {
+                $skipped++;
+                continue;
+            }
+
+            $user = User::create([
+                'name' => $name,
+                'email' => $email,
+                'password' => Hash::make('password'),
+                'must_change_password' => true,
+                'role' => 'lecturer',
+            ]);
+
+            $deptCode = trim($record['department'] ?? '');
+            $deptId = $deptCode ? Department::where('code', $deptCode)->value('id') : null;
+
+            Lecturer::create([
+                'user_id' => $user->id,
+                'title' => trim($record['title'] ?? '') ?: null,
+                'designation' => trim($record['designation'] ?? '') ?: null,
+                'phone' => trim($record['phone'] ?? '') ?: null,
+                'department_id' => $deptId,
+            ]);
+
+            $created++;
+        }
+
+        return redirect()->route('admin.lecturers.index')
+            ->with('success', "Imported {$created} lecturers. {$skipped} skipped (existing emails).");
     }
 
     /**
@@ -208,8 +230,8 @@ class LecturerController extends Controller
         $items = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
 
         $results = $items->map(function ($l) {
-            $name = optional($l->user)->name ?? $l->name ?? ('Lecturer #' . $l->id);
-            $email = optional($l->user)->email ?? $l->email;
+            $name = optional($l->user)->name ?? ('Lecturer #' . $l->id);
+            $email = optional($l->user)->email;
             return [
                 'id' => $l->id,
                 'text' => $email ? ($name . ' (' . $email . ')') : $name,
@@ -219,10 +241,23 @@ class LecturerController extends Controller
             ];
         });
 
-        $more = ($page * $perPage) < $total;
         return response()->json([
             'results' => $results,
-            'pagination' => ['more' => $more],
+            'pagination' => ['more' => ($page * $perPage) < $total],
         ]);
+    }
+
+    /**
+     * Generate MUBS email from name: "Surname Firstname" -> "fsurname@mubs.ac.ug"
+     */
+    public static function generateEmail(string $name): string
+    {
+        $parts = preg_split('/\s+/', trim($name));
+        if (count($parts) >= 2) {
+            $surname = strtolower(preg_replace('/[^a-zA-Z]/', '', $parts[count($parts) - 1] ?? $parts[0]));
+            $first = strtolower(substr(preg_replace('/[^a-zA-Z]/', '', $parts[0]), 0, 1));
+            return $first . $surname . '@mubs.ac.ug';
+        }
+        return strtolower(preg_replace('/[^a-zA-Z]/', '', $name)) . '@mubs.ac.ug';
     }
 }

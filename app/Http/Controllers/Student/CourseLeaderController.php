@@ -31,18 +31,31 @@ class CourseLeaderController extends Controller
     private function canManageSchedule(Schedule $schedule)
     {
         $cohorts = $this->getCohorts();
-        // A schedule belongs to a program, year, and group.
-        // We check if the schedule's group_id matches, and optionally program_id
-        // For simplicity based on DB design, matching group_id is typically enough if groups are unique per cohort
-        // But let's check group_id and program_id (via course)
 
-        $scheduleProgramIds = DB::table('course_program')
-            ->where('course_id', $schedule->course_id)
-            ->pluck('program_id')
-            ->toArray();
+        // Get the active student enrollment for the current semester to know their year of study
+        $activeSemester = \App\Models\AcademicSemester::where('is_active', true)->first();
+        $enrollment = auth()->user()->student->enrollments()
+            ->where('academic_semester_id', $activeSemester?->id)
+            ->first();
+
+        if (!$enrollment) return false;
+
+        $semesterName = $activeSemester ? $activeSemester->semester : 'Semester 2'; // Fallback
+
+        // Find which programs this course belongs to for this specific year and semester
+        $schedulePrograms = collect();
+        if ($schedule->course) {
+            $schedulePrograms = DB::table('course_program')
+                ->where('course_id', $schedule->course_id)
+                ->where('year_of_study', $enrollment->year_of_study)
+                ->where('semester_offered', $semesterName)
+                ->get();
+        }
 
         foreach ($cohorts as $cohort) {
-            if ($cohort->group_id == $schedule->group_id && in_array($cohort->program_id, $scheduleProgramIds)) {
+            // Check if group matches AND if the program structure maps this course to their year
+             $isValidProgram = $schedulePrograms->where('program_id', $cohort->program_id)->isNotEmpty();
+            if ($cohort->group_id == $schedule->group_id && $isValidProgram) {
                 return true;
             }
         }
@@ -56,11 +69,20 @@ class CourseLeaderController extends Controller
             abort(403, 'You are not assigned as a Course Leader.');
         }
 
+        // Get the active student enrollment for the current semester
+        $activeSemester = \App\Models\AcademicSemester::where('is_active', true)->first();
+        $enrollment = auth()->user()->student->enrollments()
+            ->where('academic_semester_id', $activeSemester?->id)
+            ->first();
+
+        if (!$enrollment) {
+            return redirect()->route('student.dashboard')->with('error', 'You must be enrolled to view the Course Leader dashboard.');
+        }
+
+        $semesterName = $activeSemester ? $activeSemester->semester : 'Semester 2'; // Fallback
+
         $group_ids = $cohorts->pluck('group_id')->toArray();
         $program_ids = $cohorts->pluck('program_id')->toArray();
-
-        // Get schedules matching the student's cohorts for active semester
-        $activeSemester = \App\Models\AcademicSemester::where('is_active', true)->first();
 
         // Base query for all schedules (both past and upcoming)
         $hasPivot = \Illuminate\Support\Facades\Schema::hasTable('lecturer_schedule');
@@ -70,8 +92,10 @@ class CourseLeaderController extends Controller
         $baseQuery = Schedule::with($withRels)
             ->whereIn('group_id', $group_ids)
             ->where('academic_semester_id', $activeSemester?->id)
-            ->whereHas('course.programs', function($q) use ($program_ids) {
-                $q->whereIn('programs.id', $program_ids);
+            ->whereHas('course.programs', function($q) use ($program_ids, $enrollment, $semesterName) {
+                $q->whereIn('programs.id', $program_ids)
+                  ->where('course_program.year_of_study', $enrollment->year_of_study)
+                  ->where('course_program.semester_offered', $semesterName);
             });
         $allUpcoming = (clone $baseQuery)
             ->whereDate('start_at', '>=', now()->toDateString())

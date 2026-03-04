@@ -10,7 +10,7 @@ class Lecturer extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'name', 'email', 'phone', 'department_id', 'title', 'specialization'];
+    protected $fillable = ['user_id', 'name', 'email', 'phone', 'department_id', 'title', 'designation', 'specialization'];
 
     public function department()
     {
@@ -79,6 +79,7 @@ class Lecturer extends Model
     public function courses()
     {
         return $this->belongsToMany(Course::class, 'course_lecturer')
+            ->withPivot('academic_year', 'semester', 'program_code', 'study_group', 'year_of_study', 'hours_per_week')
             ->withTimestamps();
     }
 }

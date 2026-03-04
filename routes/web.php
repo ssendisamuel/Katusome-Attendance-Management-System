@@ -80,29 +80,31 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('faculties', \App\Http\Controllers\Admin\FacultyController::class)->except(['show', 'create', 'edit']);
     Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class)->except(['show', 'create', 'edit']);
 
-    Route::resource('programs', ProgramController::class)->except(['show']);
+    Route::resource('programs', ProgramController::class)->except(['show', 'create', 'edit']);
     Route::resource('groups', GroupController::class)->except(['show']);
     // Groups by program for cascading selects
     Route::get('programs/{program}/groups', [GroupController::class, 'byProgram'])->name('programs.groups');
-    Route::resource('courses', CourseController::class)->except(['show']);
-    // Course-Program Assignments
+    Route::resource('courses', CourseController::class)->except(['show', 'create', 'edit']);
+    // Course-Program Assignments (Programme Structure)
     Route::get('program-courses', [ProgramCourseController::class, 'index'])->name('program-courses.index');
-    Route::get('program-courses/create', [ProgramCourseController::class, 'create'])->name('program-courses.create');
     Route::post('program-courses', [ProgramCourseController::class, 'store'])->name('program-courses.store');
-    Route::get('program-courses/{program}/{course}/edit', [ProgramCourseController::class, 'edit'])->name('program-courses.edit');
     Route::put('program-courses/{program}/{course}', [ProgramCourseController::class, 'update'])->name('program-courses.update');
     Route::delete('program-courses/{program}/{course}', [ProgramCourseController::class, 'destroy'])->name('program-courses.destroy');
-        // Assign lecturers to courses
+    // Student Enrollments
+    Route::get('enrollments/students/search', [\App\Http\Controllers\Admin\AdminEnrollmentController::class, 'searchStudents'])->name('enrollments.students.search');
+    Route::resource('enrollments', \App\Http\Controllers\Admin\AdminEnrollmentController::class)->only(['index', 'store', 'edit', 'update', 'destroy']);
+        // Teaching Load Management
     Route::get('course-lecturers', [CourseLecturerController::class, 'index'])->name('course-lecturers.index');
-    Route::get('course-lecturers/{course}/edit', [CourseLecturerController::class, 'edit'])->name('course-lecturers.edit');
-    Route::put('course-lecturers/{course}', [CourseLecturerController::class, 'update'])->name('course-lecturers.update');
+    Route::post('course-lecturers', [CourseLecturerController::class, 'store'])->name('course-lecturers.store');
+    Route::put('course-lecturers/{id}', [CourseLecturerController::class, 'update'])->name('course-lecturers.update');
+    Route::delete('course-lecturers/{id}', [CourseLecturerController::class, 'destroy'])->name('course-lecturers.destroy');
     // Students bulk upload
     Route::get('students/import', [StudentController::class, 'importForm'])->name('students.import.form');
     Route::get('students/import/template', [StudentController::class, 'importTemplate'])->name('students.import.template');
     Route::post('students/import', [StudentController::class, 'importProcess'])->name('students.import.process');
     Route::resource('students', StudentController::class);
-    Route::resource('lecturers', LecturerController::class)->except(['show']);
-    // Lecturers search for Select2
+    Route::resource('lecturers', LecturerController::class)->except(['show', 'create', 'edit']);
+    Route::post('lecturers/bulk-import', [LecturerController::class, 'bulkImport'])->name('lecturers.bulk-import');
     Route::get('lecturers/search', [LecturerController::class, 'search'])->name('lecturers.search');
     // Schedules
     Route::delete('schedules/bulk-destroy', [ScheduleController::class, 'bulkDestroy'])

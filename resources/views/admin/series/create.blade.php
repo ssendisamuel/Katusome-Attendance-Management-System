@@ -61,7 +61,18 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Year of Study</label>
+                                <select id="series-year" class="form-select select2" disabled>
+                                    <option value="all">All Years</option>
+                                    <option value="1">Year 1</option>
+                                    <option value="2">Year 2</option>
+                                    <option value="3">Year 3</option>
+                                    <option value="4">Year 4</option>
+                                    <option value="5">Year 5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
                                 <label class="form-label">Course</label>
                                 <select id="series-create-course" name="course_id" class="form-select select2"
                                     data-placeholder="Select Course" required disabled>
@@ -71,7 +82,7 @@
                                     <div class="text-danger small">{{ $message }}</div>
                                 @enderror
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-4 mb-3">
                                 <label class="form-label">Group</label>
                                 <select id="series-group" name="group_id" class="form-select select2"
                                     data-placeholder="Select Group" required>
@@ -85,6 +96,18 @@
                                 @error('group_id')
                                     <div class="text-danger small">{{ $message }}</div>
                                 @enderror
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Lecturer <small class="text-muted">(auto-assigned from Teaching
+                                        Load)</small></label>
+                                <input type="hidden" id="series-lecturer" name="lecturer_id" value="">
+                                <div id="lecturer-display" class="form-control bg-light" style="min-height:38px;">Select a
+                                    course first</div>
+                                <small class="text-muted" id="lecturer-hint">Lecturer is automatically assigned from
+                                    teaching load.</small>
                             </div>
                         </div>
                     </div>
@@ -239,12 +262,45 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const programSelect = $('#series-program');
+            const yearSelect = $('#series-year');
             const courseSelect = $('#series-create-course');
             const groupSelect = $('#series-group');
             const startTimeInput = document.getElementById('series-start-time');
             const endTimeInput = document.getElementById('series-end-time');
             const nameInput = document.getElementById('series-name');
             const refreshBtn = document.getElementById('btn-regenerate-name');
+
+            let allCourses = []; // Store fetched courses
+
+            function renderCourses() {
+                const selectedYear = yearSelect.val();
+                let filteredCourses = allCourses;
+
+                if (selectedYear !== 'all') {
+                    filteredCourses = allCourses.filter(c => String(c.year_of_study) === String(selectedYear));
+                }
+
+                courseSelect.empty().append('<option value="">Select Course</option>');
+
+                if (filteredCourses.length > 0) {
+                    window._courseLecturers = {};
+                    filteredCourses.forEach(c => {
+                        window._courseLecturers[c.id] = c.lecturers || [];
+                        const option = new Option(
+                            `${c.code} - ${c.name} (Yr ${c.year_of_study})`, c.id,
+                            false, false);
+                        $(option).attr('data-code', c.code);
+                        $(option).attr('data-year', c.year_of_study);
+                        courseSelect.append(option);
+                    });
+                    courseSelect.prop('disabled', false);
+                    courseSelect.trigger('change');
+                } else {
+                    courseSelect.append('<option value="">No courses match filters</option>');
+                    courseSelect.prop('disabled', true);
+                    courseSelect.trigger('change');
+                }
+            }
 
             // Roman numeral helper for Year
             function toRoman(num) {
@@ -332,35 +388,65 @@
                 const programId = $(this).val();
 
                 // clear course select
+                allCourses = [];
+                yearSelect.prop('disabled', true);
                 courseSelect.empty().append('<option value="">Select Course</option>').prop('disabled',
                     true);
 
                 if (!programId) return;
+
+                yearSelect.prop('disabled', false);
 
                 const url = "{{ route('admin.series.program-details', ':id') }}".replace(':id', programId);
 
                 fetch(url)
                     .then(res => res.json())
                     .then(data => {
-                        // data.courses is array of {id, code, name, year_of_study}
+                        // data.courses is array of {id, code, name, year_of_study, lecturers: [...]}
                         if (data.courses && data.courses.length) {
-                            data.courses.forEach(c => {
-                                const option = new Option(`${c.code} - ${c.name}`, c.id, false,
-                                    false);
-                                // Store data for name generation
-                                $(option).attr('data-code', c.code);
-                                $(option).attr('data-year', c.year_of_study);
-                                courseSelect.append(option);
-                            });
-                            courseSelect.prop('disabled', false);
-                            // Re-trigger select2 update if needed (forms-selects.js usually handles basic binding, but appending options manually requires notification)
-                            courseSelect.trigger('change');
+                            allCourses = data.courses;
+                            renderCourses();
                         } else {
-                            courseSelect.append(
+                            allCourses = [];
+                            courseSelect.empty().append(
                                 '<option value="">No courses found for this program</option>');
+                            courseSelect.prop('disabled', true);
+                            courseSelect.trigger('change');
                         }
                     })
                     .catch(err => console.error(err));
+            });
+
+            // On Year Change
+            yearSelect.on('change', function() {
+                renderCourses();
+            });
+
+            // Course Change: Auto-assign Lecturer from Teaching Load
+            courseSelect.on('change', function() {
+                const courseId = $(this).val();
+                const lecInput = document.getElementById('series-lecturer');
+                const lecDisplay = document.getElementById('lecturer-display');
+                lecInput.value = '';
+                lecDisplay.textContent = 'Select a course first';
+
+                if (!courseId || !window._courseLecturers) return;
+
+                const lecturers = window._courseLecturers[courseId] || [];
+                if (lecturers.length) {
+                    // Auto-select first lecturer
+                    lecInput.value = lecturers[0].id;
+                    const names = lecturers.map(l => (l.title ? l.title + ' ' : '') + l.name);
+                    lecDisplay.innerHTML = '<strong>' + names[0] + '</strong>' +
+                        (names.length > 1 ? ' <span class="text-muted">+ ' + (names.length - 1) +
+                            ' more</span>' : '');
+                    document.getElementById('lecturer-hint').textContent = names.join(', ');
+                } else {
+                    lecDisplay.innerHTML =
+                        '<span class="text-danger">No lecturer assigned in teaching load</span>';
+                    document.getElementById('lecturer-hint').textContent =
+                        'Assign lecturers in Teaching Load Management first.';
+                }
             });
 
         });

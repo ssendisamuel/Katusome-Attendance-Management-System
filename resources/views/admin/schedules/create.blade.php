@@ -93,6 +93,19 @@
                                 @enderror
                             </div>
                         </div>
+
+                        {{-- Lecturer from Teaching Load --}}
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-12">
+                                <label class="form-label">Lecturer <small class="text-muted">(auto-assigned from Teaching
+                                        Load)</small></label>
+                                <input type="hidden" id="schedule-lecturer" name="lecturer_id" value="">
+                                <div id="sched-lecturer-display" class="form-control bg-light" style="min-height:38px;">
+                                    Select a course first</div>
+                                <small class="text-muted" id="sched-lecturer-hint">Automatically assigned from teaching
+                                    load.</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -149,8 +162,8 @@
                         <!-- Access Code (conditionally shown) -->
                         <div class="mb-3" id="access-code-div" style="display: none;">
                             <label class="form-label">Access Code (OTP)</label>
-                            <input type="text" name="access_code" class="form-control" value="{{ old('access_code') }}"
-                                placeholder="e.g., 1234" maxlength="10">
+                            <input type="text" name="access_code" class="form-control"
+                                value="{{ old('access_code') }}" placeholder="e.g., 1234" maxlength="10">
                             <small class="text-muted">Required for online check-in.</small>
                             @error('access_code')
                                 <div class="text-danger small">{{ $message }}</div>
@@ -229,8 +242,12 @@
                 // Reset state
                 courseSelect.empty().append('<option value="">Select Course</option>').prop('disabled',
                     true);
-                yearSelect.prop('disabled', true).val('all').trigger('change.select2'); // Reset year filter
+                yearSelect.prop('disabled', true).val('all').trigger('change.select2');
                 allCourses = [];
+                // Also reset lecturer
+                const lecturerSelect = $('#schedule-lecturer');
+                lecturerSelect.empty().append('<option value="">Select Course First</option>').prop(
+                    'disabled', true);
 
                 if (!programId) return;
 
@@ -240,12 +257,14 @@
                     .then(res => res.json())
                     .then(data => {
                         if (data.courses && data.courses.length) {
-                            allCourses = data.courses; // Cache them
+                            // Store course lecturers for later use
+                            window._courseLecturers = {};
+                            allCourses = data.courses.map(c => {
+                                window._courseLecturers[c.id] = c.lecturers || [];
+                                return c;
+                            });
 
-                            // Enable filters
                             yearSelect.prop('disabled', false);
-
-                            // Initial Render
                             renderCourses();
                         } else {
                             courseSelect.append('<option value="">No courses found</option>');
@@ -257,6 +276,33 @@
             // Year Change: Filter Courses
             yearSelect.on('change', function() {
                 renderCourses();
+            });
+
+            // Course Change: Auto-assign Lecturer from Teaching Load
+            courseSelect.on('change', function() {
+                const courseId = $(this).val();
+                const lecInput = document.getElementById('schedule-lecturer');
+                const lecDisplay = document.getElementById('sched-lecturer-display');
+                lecInput.value = '';
+                lecDisplay.textContent = 'Select a course first';
+
+                if (!courseId || !window._courseLecturers) return;
+
+                const lecturers = window._courseLecturers[courseId] || [];
+                if (lecturers.length) {
+                    // Auto-select first lecturer
+                    lecInput.value = lecturers[0].id;
+                    const names = lecturers.map(l => (l.title ? l.title + ' ' : '') + l.name);
+                    lecDisplay.innerHTML = '<strong>' + names[0] + '</strong>' +
+                        (names.length > 1 ? ' <span class="text-muted">+ ' + (names.length - 1) +
+                            ' more</span>' : '');
+                    document.getElementById('sched-lecturer-hint').textContent = names.join(', ');
+                } else {
+                    lecDisplay.innerHTML =
+                        '<span class="text-danger">No lecturer assigned in teaching load</span>';
+                    document.getElementById('sched-lecturer-hint').textContent =
+                        'Assign lecturers in Teaching Load Management first.';
+                }
             });
 
             // Online Toggle Logic
