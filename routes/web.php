@@ -152,6 +152,10 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('admins', \App\Http\Controllers\Admin\AdminUserController::class);
 
     // Role-based User Management (lecturers, hods, deans, qa, principal, registrar, campus_chief)
+    Route::get('users/api/faculty-departments/{faculty}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getFacultyDepartments'])->name('users.api.faculty-departments');
+    Route::get('users/api/department-staff/{department}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getDepartmentStaff'])->name('users.api.department-staff');
+    Route::get('users/api/faculty-staff/{faculty}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getFacultyStaff'])->name('users.api.faculty-staff');
+
     Route::get('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.role')
         ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
     Route::post('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'store'])->name('users.store')

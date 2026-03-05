@@ -26,6 +26,53 @@
                 </button>
             </div>
 
+            {{-- Filters --}}
+            @if (in_array($role, ['hod', 'dean']))
+                <form method="GET" action="{{ route('admin.users.role', $role) }}" class="mb-4">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">Campus</label>
+                            <select name="campus_id" class="form-select" onchange="this.form.submit()">
+                                <option value="">All Campuses</option>
+                                @foreach ($campuses as $campus)
+                                    <option value="{{ $campus->id }}"
+                                        {{ request('campus_id') == $campus->id ? 'selected' : '' }}>{{ $campus->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Faculty</label>
+                            <select name="faculty_id" class="form-select" onchange="this.form.submit()">
+                                <option value="">All Faculties</option>
+                                @foreach ($faculties as $fac)
+                                    <option value="{{ $fac->id }}"
+                                        {{ request('faculty_id') == $fac->id ? 'selected' : '' }}>{{ $fac->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @if ($role === 'hod')
+                            <div class="col-md-3">
+                                <label class="form-label">Department</label>
+                                <select name="department_id" class="form-select" onchange="this.form.submit()">
+                                    <option value="">All Departments</option>
+                                    @foreach ($departments as $dept)
+                                        <option value="{{ $dept->id }}"
+                                            {{ request('department_id') == $dept->id ? 'selected' : '' }}>
+                                            {{ $dept->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
+                        <div class="col-md-3">
+                            <a href="{{ route('admin.users.role', $role) }}" class="btn btn-outline-secondary">Clear
+                                Filters</a>
+                        </div>
+                    </div>
+                </form>
+            @endif
+
             {{-- Users Table --}}
             <div class="card">
                 <div class="table-responsive">
@@ -133,23 +180,25 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="u_name" name="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="u_email" name="email" required>
-                        </div>
-                        <div class="mb-3" id="password-field">
-                            <label class="form-label">Password <small class="text-muted">(leave blank for
-                                    default)</small></label>
-                            <input type="password" class="form-control" id="u_password" name="password"
-                                placeholder="Default: password123">
+                        <div id="new-user-fields">
+                            <div class="mb-3">
+                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="u_name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="u_email" name="email" required>
+                            </div>
+                            <div class="mb-3" id="password-field">
+                                <label class="form-label">Password <small class="text-muted">(leave blank for
+                                        default)</small></label>
+                                <input type="password" class="form-control" id="u_password" name="password"
+                                    placeholder="Default: password123">
+                            </div>
                         </div>
 
-                        @if ($role === 'dean')
-                            <div class="mb-3">
+                        @if ($role === 'hod' || $role === 'dean')
+                            <div class="mb-3" id="faculty-group">
                                 <label class="form-label">Assign to Faculty</label>
                                 <select class="form-select" id="u_faculty_id" name="faculty_id">
                                     <option value="">— None —</option>
@@ -162,14 +211,23 @@
                         @endif
 
                         @if ($role === 'hod')
-                            <div class="mb-3">
+                            <div class="mb-3" id="department-group">
                                 <label class="form-label">Assign to Department</label>
                                 <select class="form-select" id="u_department_id" name="department_id">
                                     <option value="">— None —</option>
                                     @foreach ($departments as $dept)
-                                        <option value="{{ $dept->id }}">{{ $dept->code }} — {{ $dept->name }}
-                                            ({{ $dept->faculty?->code }})</option>
+                                        <option value="{{ $dept->id }}" data-faculty="{{ $dept->faculty_id }}">
+                                            {{ $dept->code }} — {{ $dept->name }}</option>
                                     @endforeach
+                                </select>
+                            </div>
+                        @endif
+
+                        @if ($role === 'hod' || $role === 'dean')
+                            <div class="mb-3" id="staff-group" style="display: none;">
+                                <label class="form-label">Select Staff</label>
+                                <select class="form-select" id="u_user_id" name="user_id">
+                                    <option value="">— Select Staff —</option>
                                 </select>
                             </div>
                         @endif
@@ -185,7 +243,12 @@
     </div>
 @endsection
 
+@section('page-style')
+    @vite(['resources/assets/vendor/libs/select2/select2.scss'])
+@endsection
+
 @section('page-script')
+    @vite(['resources/assets/vendor/libs/select2/select2.js'])
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('user-search');
@@ -253,6 +316,87 @@
                     timer: 4000
                 });
             @endif
+
+            // Cascading dropdown logic
+            const uFacultyId = document.getElementById('u_faculty_id');
+            const uDepartmentId = document.getElementById('u_department_id');
+            const uUserId = document.getElementById('u_user_id');
+            const role = '{{ $role }}';
+            const methodInput = document.getElementById('userFormMethod');
+
+            if (uFacultyId) {
+                uFacultyId.addEventListener('change', function() {
+                    const facultyId = this.value;
+
+                    // Filter departments for HOD
+                    if (uDepartmentId) {
+                        Array.from(uDepartmentId.options).forEach(opt => {
+                            if (opt.value === '') {
+                                opt.style.display = '';
+                                return;
+                            }
+                            if (!facultyId || opt.dataset.faculty === facultyId) {
+                                opt.style.display = '';
+                            } else {
+                                opt.style.display = 'none';
+                            }
+                        });
+                        uDepartmentId.value = '';
+                    }
+
+                    // For Dean adding, fetch staff by faculty
+                    if (role === 'dean' && methodInput.value === 'POST') {
+                        uUserId.innerHTML = '<option value="">— Loading... —</option>';
+                        if (facultyId) {
+                            fetch(`/admin/users/api/faculty-staff/${facultyId}`)
+                                .then(res => res.json())
+                                .then(data => {
+                                    populateStaffDropdown(data);
+                                });
+                        } else {
+                            uUserId.innerHTML = '<option value="">— Select Faculty First —</option>';
+                        }
+                    }
+                });
+            }
+
+            if (uDepartmentId) {
+                uDepartmentId.addEventListener('change', function() {
+                    const deptId = this.value;
+
+                    // For HOD adding, fetch staff by department
+                    if (role === 'hod' && methodInput.value === 'POST') {
+                        uUserId.innerHTML = '<option value="">— Loading... —</option>';
+                        if (deptId) {
+                            fetch(`/admin/users/api/department-staff/${deptId}`)
+                                .then(res => res.json())
+                                .then(data => {
+                                    populateStaffDropdown(data);
+                                });
+                        } else {
+                            uUserId.innerHTML = '<option value="">— Select Department First —</option>';
+                        }
+                    }
+                });
+            }
+
+            function populateStaffDropdown(data) {
+                let options = '<option value="">— Select Staff —</option>';
+                data.forEach(staff => {
+                    options += `<option value="${staff.id}">${staff.name} (${staff.email})</option>`;
+                });
+                uUserId.innerHTML = options;
+
+                // Initialize select2 on the staff dropdown
+                if (typeof $ !== 'undefined' && $.fn.select2) {
+                    $('#u_user_id').select2({
+                        dropdownParent: $('#userModal'),
+                        placeholder: '— Select Staff —',
+                        allowClear: true,
+                        width: '100%'
+                    });
+                }
+            }
         });
 
         function resetUserForm() {
@@ -260,6 +404,35 @@
             document.getElementById('userSubmitBtn').textContent = 'Save {{ $roleLabel }}';
             document.getElementById('userForm').action = '{{ route('admin.users.store', $role) }}';
             document.getElementById('userFormMethod').value = 'POST';
+
+            const newUserFields = document.getElementById('new-user-fields');
+            const staffGroup = document.getElementById('staff-group');
+
+            if ('{{ $role }}' === 'hod' || '{{ $role }}' === 'dean') {
+                if (newUserFields) newUserFields.style.display = 'none';
+                if (staffGroup) staffGroup.style.display = 'block';
+
+                document.getElementById('u_name').required = false;
+                document.getElementById('u_email').required = false;
+
+                const uUserId = document.getElementById('u_user_id');
+                if (uUserId) {
+                    uUserId.innerHTML = '<option value="">— Select Faculty/Department First —</option>';
+                    uUserId.required = true;
+                    if (typeof $ !== 'undefined' && $.fn.select2) {
+                        $('#u_user_id').select2({
+                            dropdownParent: $('#userModal'),
+                            placeholder: '— Select Faculty/Department First —',
+                            width: '100%'
+                        });
+                    }
+                }
+            } else {
+                if (newUserFields) newUserFields.style.display = 'block';
+                document.getElementById('u_name').required = true;
+                document.getElementById('u_email').required = true;
+            }
+
             document.getElementById('u_name').value = '';
             document.getElementById('u_email').value = '';
             document.getElementById('u_password').value = '';
@@ -267,6 +440,11 @@
             if (facSelect) facSelect.value = '';
             const deptSelect = document.getElementById('u_department_id');
             if (deptSelect) deptSelect.value = '';
+
+            // Trigger change to reset visibility
+            if (facSelect) {
+                facSelect.dispatchEvent(new Event('change'));
+            }
         }
 
         function editUser(user, facultyId, departmentId) {
@@ -274,13 +452,29 @@
             document.getElementById('userSubmitBtn').textContent = 'Update {{ $roleLabel }}';
             document.getElementById('userForm').action = `/admin/users/{{ $role }}/${user.id}`;
             document.getElementById('userFormMethod').value = 'PUT';
+
+            const newUserFields = document.getElementById('new-user-fields');
+            const staffGroup = document.getElementById('staff-group');
+
+            if (newUserFields) newUserFields.style.display = 'block';
+            if (staffGroup) staffGroup.style.display = 'none';
+
+            document.getElementById('u_name').required = true;
+            document.getElementById('u_email').required = true;
+            const uUserId = document.getElementById('u_user_id');
+            if (uUserId) uUserId.required = false;
+
             document.getElementById('u_name').value = user.name;
             document.getElementById('u_email').value = user.email;
             document.getElementById('u_password').value = '';
             const facSelect = document.getElementById('u_faculty_id');
             if (facSelect) facSelect.value = facultyId || '';
             const deptSelect = document.getElementById('u_department_id');
-            if (deptSelect) deptSelect.value = departmentId || '';
+            if (deptSelect) {
+                // Ensure all departments are visible before setting value
+                Array.from(deptSelect.options).forEach(opt => opt.style.display = '');
+                deptSelect.value = departmentId || '';
+            }
 
             new bootstrap.Modal(document.getElementById('userModal')).show();
         }
