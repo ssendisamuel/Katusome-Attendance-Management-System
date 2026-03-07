@@ -1,6 +1,8 @@
-# Katusome Attendance Management System
+# MUBS Attendance Management System
 
-A Laravel-based application for managing student attendance. It supports schedule generation, attendance recording within time windows, lecturer and course management, and reporting.
+A Laravel-based application for managing student attendance at Makerere University Business School. It supports schedule generation, attendance recording within time windows, lecturer and course management, and reporting.
+
+**Production URL:** https://attendance.mubs.ac.ug
 
 ## Getting Started
 

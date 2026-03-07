@@ -322,31 +322,284 @@
   </div>
 @endsection
 
+
 @section('page-script')
   <script>
     const ROLE = '{{ $role }}';
     let searchTimeout;
 
-    // Global functions (must be outside DOMContentLoaded for onclick attributes)
+    document.addEventListener('DOMContentLoaded', function() {
+      loadUsers();
+
+      document.getElementById('user-search')?.addEventListener('keyup', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(filterTable, 300);
+      });
+
+      document.getElementById('user-campus-filter')?.addEventListener('change', filterTable);
+
+      // Attach event listeners using event delegation on the document
+      document.addEventListener('change', function(e) {
+        // For Dean: Show user search when faculty is selected
+        if (e.target && e.target.id === 'assign-faculty-id' && ROLE === 'dean') {
+          const facultyId = e.target.value;
+          const userSelection = document.getElementById('dean-user-selection');
+          console.log('Faculty selected:', facultyId, 'User selection div:', userSelection);
+          if (facultyId) {
+            userSelection.style.display = 'block';
+            document.getElementById('user-search-input').value = '';
+            document.getElementById('user-search-results').innerHTML = '';
+            document.getElementById('selected-user-id').value = '';
+            document.getElementById('selected-user-info').style.display = 'none';
+            // Auto-trigger search to show all users
+            setTimeout(() => {
+              document.getElementById('user-search-input').value = ' ';
+              searchUsers();
+            }, 100);
+          } else {
+            userSelection.style.display = 'none';
+          }
+        }
+      });
+
+      // For HOD: Cascade faculty -> department -> user search using event delegation
+      document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'hod-faculty-filter' && ROLE === 'hod') {
+          const facultyId = e.target.value;
+          const deptSelection = document.getElementById('hod-department-selection');
+          const userSelection = document.getElementById('hod-user-selection');
+          const deptSelect = document.getElementById('assign-department-id');
+
+          if (facultyId) {
+            fetch(`/admin/users/api/faculty-departments/${facultyId}`)
+              .then(r => r.json())
+              .then(departments => {
+                deptSelect.innerHTML = '<option value="">Select Department</option>';
+                departments.forEach(dept => {
+                  deptSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                });
+                deptSelection.style.display = 'block';
+                userSelection.style.display = 'none';
+              })
+              .catch(err => {
+                console.error('Failed to load departments:', err);
+                showToast('error', 'Failed to load departments');
+              });
+          } else {
+            deptSelection.style.display = 'none';
+            userSelection.style.display = 'none';
+          }
+        }
+
+        if (e.target && e.target.id === 'assign-department-id' && ROLE === 'hod') {
+          const deptId = e.target.value;
+          const userSelection = document.getElementById('hod-user-selection');
+          if (deptId) {
+            userSelection.style.display = 'block';
+            document.getElementById('user-search-input').value = '';
+            document.getElementById('user-search-results').innerHTML = '';
+            document.getElementById('selected-user-id').value = '';
+            document.getElementById('selected-user-info').style.display = 'none';
+            // Auto-trigger search to show all users
+            setTimeout(() => {
+              document.getElementById('user-search-input').value = ' ';
+              searchUsers();
+            }, 100);
+          } else {
+            userSelection.style.display = 'none';
+          }
+        }
+      });
+
+
+      const userSearchInput = document.getElementById('user-search-input');
+      userSearchInput?.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => searchUsers(), 300);
+      });
+
+      if (!['hod', 'dean'].includes(ROLE)) {
+        ['assign-campus-filter', 'assign-faculty-filter', 'assign-department-filter'].forEach(id => {
+          document.getElementById(id)?.addEventListener('change', () => {
+            if (userSearchInput.value.trim()) {
+              searchUsers();
+            }
+          });
+        });
+      }
+
+      document.getElementById('assignUserForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        assignRole();
+      });
+
+      document.getElementById('createUserForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        createUser();
+      });
+
+      @if (session('success'))
+        showToast('success', '{{ session('success') }}');
+      @endif
+      @if (session('error'))
+        showToast('error', '{{ session('error') }}');
+      @endif
+    });
+
     function resetUserForm() {
       document.getElementById('assignUserForm')?.reset();
       document.getElementById('createUserForm')?.reset();
       document.getElementById('user-search-results').innerHTML = '';
       document.getElementById('selected-user-id').value = '';
       document.getElementById('selected-user-info').style.display = 'none';
-      if (document.getElementById('send-welcome-email')) {
-        document.getElementById('send-welcome-email').checked = true;
-      }
+      document.getElementById('send-welcome-email')?.checked = true;
 
       if (ROLE === 'dean') {
         document.getElementById('dean-user-selection').style.display = 'none';
       }
       if (ROLE === 'hod') {
-        const deptSel = document.getElementById('hod-department-selection');
-        const userSel = document.getElementById('hod-user-selection');
-        if (deptSel) deptSel.style.display = 'none';
-        if (userSel) userSel.style.display = 'none';
+        document.getElementById('hod-department-selection').style.display = 'none';
+        document.getElementById('hod-user-selection').style.display = 'none';
       }
+    }
+
+    function loadUsers() {
+      fetch(`/admin/users/${ROLE}/list`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(r => r.json())
+        .then(users => {
+          renderUsersTable(users);
+        })
+        .catch(err => {
+          console.error('Failed to load users:', err);
+          showToast('error', 'Failed to load users');
+        });
+    }
+
+    function renderUsersTable(users) {
+      const tbody = document.getElementById('users-tbody');
+      if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No users found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map((user, index) => {
+        let assignmentCol = '';
+        if (ROLE === 'dean') {
+          assignmentCol = `<td>${user.faculty || '—'}</td>`;
+        } else if (ROLE === 'hod') {
+          assignmentCol = `<td>${user.department || '—'}</td>`;
+        }
+
+        return `
+                    <tr data-search="${user.name.toLowerCase()} ${user.email.toLowerCase()}"
+                        data-campus="${(user.campus || '').toLowerCase()}">
+                        <td>${index + 1}</td>
+                        <td><span class="fw-medium">${user.title ? user.title + ' ' : ''}${user.name}</span></td>
+                        <td>${user.email}</td>
+                        <td>${user.phone || '—'}</td>
+                        ${assignmentCol}
+                        <td>
+                            <button type="button" class="btn btn-sm btn-icon btn-outline-danger"
+                                onclick="removeUser(${user.user_role_id || user.user_id}, ${!user.user_role_id})"
+                                title="Remove">
+                                <i class="ri ri-delete-bin-line"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+      }).join('');
+    }
+
+    function filterTable() {
+      const searchTerm = document.getElementById('user-search')?.value.toLowerCase() || '';
+      const campusFilter = document.getElementById('user-campus-filter')?.value || '';
+
+      document.querySelectorAll('#users-table tbody tr[data-search]').forEach(row => {
+        const matchText = !searchTerm || row.dataset.search.includes(searchTerm);
+        const matchCampus = !campusFilter || row.dataset.campus.includes(campusFilter);
+        row.style.display = (matchText && matchCampus) ? '' : 'none';
+      });
+    }
+
+
+    function searchUsers() {
+      const searchTerm = document.getElementById('user-search-input').value.trim();
+      const resultsDiv = document.getElementById('user-search-results');
+
+      const params = new URLSearchParams();
+
+      if (searchTerm && searchTerm !== ' ') {
+        params.append('search', searchTerm);
+      }
+
+      if (ROLE === 'dean') {
+        const facultyId = document.getElementById('assign-faculty-id').value;
+        if (facultyId) {
+          params.append('faculty_id', facultyId);
+        } else {
+          resultsDiv.innerHTML = '<div class="list-group-item text-muted">Please select a faculty first</div>';
+          return;
+        }
+      }
+
+      if (ROLE === 'hod') {
+        const deptId = document.getElementById('assign-department-id').value;
+        if (deptId) {
+          params.append('department_id', deptId);
+        } else {
+          resultsDiv.innerHTML = '<div class="list-group-item text-muted">Please select a department first</div>';
+          return;
+        }
+      }
+
+      if (!['hod', 'dean'].includes(ROLE)) {
+        const campusId = document.getElementById('assign-campus-filter')?.value;
+        const facultyId = document.getElementById('assign-faculty-filter')?.value;
+        const deptId = document.getElementById('assign-department-filter')?.value;
+
+        if (campusId) params.append('campus_id', campusId);
+        if (facultyId) params.append('faculty_id', facultyId);
+        if (deptId) params.append('department_id', deptId);
+      }
+
+      resultsDiv.innerHTML = '<div class="list-group-item text-muted">Searching...</div>';
+
+      fetch(`/admin/users/search?${params}`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(r => r.json())
+        .then(users => {
+          if (users.length === 0) {
+            resultsDiv.innerHTML =
+              `<div class="list-group-item text-muted">No users found in this ${ROLE === 'dean' ? 'faculty' : ROLE === 'hod' ? 'department' : 'selection'}</div>`;
+            return;
+          }
+
+          resultsDiv.innerHTML = users.map(user => `
+                        <a href="#" class="list-group-item list-group-item-action" onclick="selectUser(${user.id}, '${user.name.replace(/'/g, "\\'")}', event)">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>${user.title ? user.title + ' ' : ''}${user.name}</strong>
+                                    <br><small class="text-muted">${user.email}</small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="badge bg-label-info">${user.current_role}</small>
+                                    ${user.department ? '<br><small class="text-muted">' + user.department + '</small>' : ''}
+                                </div>
+                            </div>
+                        </a>
+                    `).join('');
+        })
+        .catch(err => {
+          console.error('Search failed:', err);
+          resultsDiv.innerHTML = '<div class="list-group-item text-danger">Search failed</div>';
+        });
     }
 
     function selectUser(userId, userName, event) {
@@ -355,6 +608,70 @@
       document.getElementById('selected-user-name').textContent = userName;
       document.getElementById('selected-user-info').style.display = 'block';
       document.getElementById('user-search-results').innerHTML = '';
+    }
+
+    function assignRole() {
+      const form = document.getElementById('assignUserForm');
+      const formData = new FormData(form);
+
+      if (!formData.get('user_id')) {
+        showToast('error', 'Please select a user');
+        return;
+      }
+
+      fetch(`/admin/users/${ROLE}`, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast('success', data.message);
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            loadUsers();
+          } else {
+            showToast('error', data.message);
+          }
+        })
+        .catch(err => {
+          console.error('Assign failed:', err);
+          showToast('error', 'Failed to assign role');
+        });
+    }
+
+    function createUser() {
+      const form = document.getElementById('createUserForm');
+      const formData = new FormData(form);
+
+      fetch(`/admin/users/${ROLE}`, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast('success', data.message);
+            if (data.password) {
+              showToast('info', 'Generated password: ' + data.password);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            loadUsers();
+          } else {
+            showToast('error', data.message);
+          }
+        })
+        .catch(err => {
+          console.error('Create failed:', err);
+          showToast('error', 'Failed to create user');
+        });
     }
 
     function removeUser(id, isPrimaryRole) {
@@ -417,339 +734,6 @@
       } else {
         alert(message);
       }
-    }
-
-    // DOMContentLoaded event
-    document.addEventListener('DOMContentLoaded', function() {
-      loadUsers();
-
-      // Table search
-      document.getElementById('user-search')?.addEventListener('keyup', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(filterTable, 300);
-      });
-
-      document.getElementById('user-campus-filter')?.addEventListener('change', filterTable);
-
-      // Dean faculty selection
-      const deanFacultySelect = document.getElementById('assign-faculty-id');
-      if (deanFacultySelect && ROLE === 'dean') {
-        deanFacultySelect.addEventListener('change', function() {
-          const facultyId = this.value;
-          const userSelection = document.getElementById('dean-user-selection');
-          if (facultyId) {
-            userSelection.style.display = 'block';
-            document.getElementById('user-search-input').value = '';
-            document.getElementById('user-search-results').innerHTML = '';
-            document.getElementById('selected-user-id').value = '';
-            document.getElementById('selected-user-info').style.display = 'none';
-            setTimeout(() => searchUsers(), 100);
-          } else {
-            userSelection.style.display = 'none';
-          }
-        });
-      }
-
-      // HOD faculty selection
-      const hodFacultySelect = document.getElementById('hod-faculty-filter');
-      if (hodFacultySelect && ROLE === 'hod') {
-        hodFacultySelect.addEventListener('change', function() {
-          const facultyId = this.value;
-          const deptSelection = document.getElementById('hod-department-selection');
-          const userSelection = document.getElementById('hod-user-selection');
-          const deptSelect = document.getElementById('assign-department-id');
-
-          if (facultyId) {
-            fetch(`/admin/users/api/faculty-departments/${facultyId}`)
-              .then(r => r.json())
-              .then(departments => {
-                deptSelect.innerHTML = '<option value="">Select Department</option>';
-                departments.forEach(dept => {
-                  deptSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
-                });
-                deptSelection.style.display = 'block';
-                userSelection.style.display = 'none';
-              })
-              .catch(err => {
-                console.error('Failed to load departments:', err);
-                showToast('error', 'Failed to load departments');
-              });
-          } else {
-            deptSelection.style.display = 'none';
-            userSelection.style.display = 'none';
-          }
-        });
-      }
-
-      // HOD department selection
-      const hodDeptSelect = document.getElementById('assign-department-id');
-      if (hodDeptSelect && ROLE === 'hod') {
-        hodDeptSelect.addEventListener('change', function() {
-          const deptId = this.value;
-          const userSelection = document.getElementById('hod-user-selection');
-          if (deptId) {
-            userSelection.style.display = 'block';
-            document.getElementById('user-search-input').value = '';
-            document.getElementById('user-search-results').innerHTML = '';
-            document.getElementById('selected-user-id').value = '';
-            document.getElementById('selected-user-info').style.display = 'none';
-            setTimeout(() => searchUsers(), 100);
-          } else {
-            userSelection.style.display = 'none';
-          }
-        });
-      }
-
-      // User search input
-      const userSearchInput = document.getElementById('user-search-input');
-      if (userSearchInput) {
-        userSearchInput.addEventListener('input', function() {
-          clearTimeout(searchTimeout);
-          searchTimeout = setTimeout(() => searchUsers(), 300);
-        });
-      }
-
-      // Filter changes for non-HOD/Dean roles
-      if (!['hod', 'dean'].includes(ROLE)) {
-        ['assign-campus-filter', 'assign-faculty-filter', 'assign-department-filter'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) {
-            el.addEventListener('change', () => {
-              if (userSearchInput && userSearchInput.value.trim()) {
-                searchUsers();
-              }
-            });
-          }
-        });
-      }
-
-      // Form submissions
-      document.getElementById('assignUserForm')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        assignRole();
-      });
-
-      document.getElementById('createUserForm')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        createUser();
-      });
-
-      // Show session messages
-      @if (session('success'))
-        showToast('success', '{{ session('success') }}');
-      @endif
-      @if (session('error'))
-        showToast('error', '{{ session('error') }}');
-      @endif
-    });
-
-    function loadUsers() {
-      fetch(`/admin/users/${ROLE}/list`, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        })
-        .then(r => r.json())
-        .then(users => {
-          renderUsersTable(users);
-        })
-        .catch(err => {
-          console.error('Failed to load users:', err);
-          showToast('error', 'Failed to load users');
-        });
-    }
-
-    function renderUsersTable(users) {
-      const tbody = document.getElementById('users-tbody');
-      if (!users || users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No users found.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = users.map((user, index) => {
-        let assignmentCol = '';
-        if (ROLE === 'dean') {
-          assignmentCol = `<td>${user.faculty || '—'}</td>`;
-        } else if (ROLE === 'hod') {
-          assignmentCol = `<td>${user.department || '—'}</td>`;
-        }
-
-        const userName = (user.name || '').replace(/'/g, "\\'");
-        return `
-          <tr data-search="${user.name.toLowerCase()} ${user.email.toLowerCase()}"
-              data-campus="${(user.campus || '').toLowerCase()}">
-            <td>${index + 1}</td>
-            <td><span class="fw-medium">${user.title ? user.title + ' ' : ''}${user.name}</span></td>
-            <td>${user.email}</td>
-            <td>${user.phone || '—'}</td>
-            ${assignmentCol}
-            <td>
-              <button type="button" class="btn btn-sm btn-icon btn-outline-danger"
-                  onclick="removeUser(${user.user_role_id || user.user_id}, ${!user.user_role_id})"
-                  title="Remove">
-                <i class="ri ri-delete-bin-line"></i>
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function filterTable() {
-      const searchTerm = document.getElementById('user-search')?.value.toLowerCase() || '';
-      const campusFilter = document.getElementById('user-campus-filter')?.value || '';
-
-      document.querySelectorAll('#users-table tbody tr[data-search]').forEach(row => {
-        const matchText = !searchTerm || row.dataset.search.includes(searchTerm);
-        const matchCampus = !campusFilter || row.dataset.campus.includes(campusFilter);
-        row.style.display = (matchText && matchCampus) ? '' : 'none';
-      });
-    }
-
-    function searchUsers() {
-      const searchTerm = document.getElementById('user-search-input')?.value.trim() || '';
-      const resultsDiv = document.getElementById('user-search-results');
-      if (!resultsDiv) return;
-
-      const params = new URLSearchParams();
-
-      if (searchTerm && searchTerm !== ' ') {
-        params.append('search', searchTerm);
-      }
-
-      if (ROLE === 'dean') {
-        const facultyId = document.getElementById('assign-faculty-id')?.value;
-        if (facultyId) {
-          params.append('faculty_id', facultyId);
-        } else {
-          resultsDiv.innerHTML = '<div class="list-group-item text-muted">Please select a faculty first</div>';
-          return;
-        }
-      }
-
-      if (ROLE === 'hod') {
-        const deptId = document.getElementById('assign-department-id')?.value;
-        if (deptId) {
-          params.append('department_id', deptId);
-        } else {
-          resultsDiv.innerHTML = '<div class="list-group-item text-muted">Please select a department first</div>';
-          return;
-        }
-      }
-
-      if (!['hod', 'dean'].includes(ROLE)) {
-        const campusId = document.getElementById('assign-campus-filter')?.value;
-        const facultyId = document.getElementById('assign-faculty-filter')?.value;
-        const deptId = document.getElementById('assign-department-filter')?.value;
-
-        if (campusId) params.append('campus_id', campusId);
-        if (facultyId) params.append('faculty_id', facultyId);
-        if (deptId) params.append('department_id', deptId);
-      }
-
-      resultsDiv.innerHTML = '<div class="list-group-item text-muted">Searching...</div>';
-
-      fetch(`/admin/users/search?${params}`, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        })
-        .then(r => r.json())
-        .then(users => {
-          if (users.length === 0) {
-            const context = ROLE === 'dean' ? 'faculty' : ROLE === 'hod' ? 'department' : 'selection';
-            resultsDiv.innerHTML = `<div class="list-group-item text-muted">No users found in this ${context}</div>`;
-            return;
-          }
-
-          resultsDiv.innerHTML = users.map(user => {
-            const userName = (user.name || '').replace(/'/g, "\\'");
-            return `
-              <a href="#" class="list-group-item list-group-item-action" onclick="selectUser(${user.id}, '${userName}', event)">
-                <div class="d-flex justify-content-between">
-                  <div>
-                    <strong>${user.title ? user.title + ' ' : ''}${user.name}</strong>
-                    <br><small class="text-muted">${user.email}</small>
-                  </div>
-                  <div class="text-end">
-                    <small class="badge bg-label-info">${user.current_role}</small>
-                    ${user.department ? '<br><small class="text-muted">' + user.department + '</small>' : ''}
-                  </div>
-                </div>
-              </a>
-            `;
-          }).join('');
-        })
-        .catch(err => {
-          console.error('Search failed:', err);
-          resultsDiv.innerHTML = '<div class="list-group-item text-danger">Search failed</div>';
-        });
-    }
-
-    function assignRole() {
-      const form = document.getElementById('assignUserForm');
-      const formData = new FormData(form);
-
-      if (!formData.get('user_id')) {
-        showToast('error', 'Please select a user');
-        return;
-      }
-
-      fetch(`/admin/users/${ROLE}`, {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-          },
-          body: formData
-        })
-        .then(r => r.json())
-        .then(data => {
-          if (data.success) {
-            showToast('success', data.message);
-            const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
-            if (modal) modal.hide();
-            loadUsers();
-          } else {
-            showToast('error', data.message);
-          }
-        })
-        .catch(err => {
-          console.error('Assign failed:', err);
-          showToast('error', 'Failed to assign role');
-        });
-    }
-
-    function createUser() {
-      const form = document.getElementById('createUserForm');
-      const formData = new FormData(form);
-
-      fetch(`/admin/users/${ROLE}`, {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-          },
-          body: formData
-        })
-        .then(r => r.json())
-        .then(data => {
-          if (data.success) {
-            showToast('success', data.message);
-            if (data.password) {
-              showToast('info', 'Generated password: ' + data.password);
-            }
-            const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
-            if (modal) modal.hide();
-            loadUsers();
-          } else {
-            showToast('error', data.message);
-          }
-        })
-        .catch(err => {
-          console.error('Create failed:', err);
-          showToast('error', 'Failed to create user');
-        });
     }
   </script>
 @endsection

@@ -1,8 +1,9 @@
-# Deployment Checklist: katusome.ssendi.dev
+# Deployment Checklist: attendance.mubs.ac.ug
 
 This guide prepares the project for production deployment on a CWP server.
 
 ## Server Setup
+
 - Set the vhost DocumentRoot to `.../Ssendi_Attendance/public`.
 - Enable `.htaccess` and symlink following:
   - In Apache vhost: `AllowOverride All` and ensure `Options +FollowSymLinks`.
@@ -13,13 +14,14 @@ This guide prepares the project for production deployment on a CWP server.
 - Set correct PHP version to match your composer platform (PHP ≥ 8.0 recommended).
 
 ## Application Setup
+
 1. Upload code to the server (keep `public` as web root).
 2. Run Composer:
    - `composer install --no-dev --optimize-autoloader`
 3. Configure environment:
    - Copy `.env.production.example` to `.env`
    - Set `APP_KEY` using `php artisan key:generate`
-   - Fill DB credentials and `APP_URL=https://katusome.ssendi.dev`
+   - Fill DB credentials and `APP_URL=https://attendance.mubs.ac.ug`
    - Set `FILESYSTEM_DISK=public`
    - Set `QUEUE_CONNECTION=database` (recommended) or `sync` temporarily
    - Keep `MAIL_MAILER=log` until SMTP is configured
@@ -41,18 +43,22 @@ This guide prepares the project for production deployment on a CWP server.
    - `php artisan view:cache`
 
 ## Email Delivery (Direct SMTP)
+
 All emails are sent immediately via direct SMTP. There are no queue workers, outbox tables, or scheduled drain jobs.
 
 ### Requirements
+
 - Set mail driver to SMTP: `.env` `MAIL_MAILER=smtp`.
 - Configure SMTP host, port, username, password, and EHLO domain.
 - Ensure outbound SMTP is allowed by your hosting provider/firewall.
 
 ### Verification
+
 - Send a test email: `php artisan mail:test-send you@example.com --subject="SMTP Direct Test" --body="Hello from direct SMTP."`
 - Check `storage/logs/laravel.log` for `info` entries confirming delivery attempts.
 
 ### Caching
+
 - After deployment, refresh caches:
   - `php artisan optimize:clear`
   - `php artisan config:cache`
@@ -60,20 +66,23 @@ All emails are sent immediately via direct SMTP. There are no queue workers, out
   - `php artisan view:cache`
 
 ### Troubleshooting
+
 - If emails fail, verify `.env` SMTP credentials and `MAIL_EHLO_DOMAIN`.
 - Try a different port (`MAIL_PORT=587` or `MAIL_PORT=465` with `MAIL_SCHEME=tls/ssl`).
 - Confirm that DNS and reverse DNS are correctly set for the sending host.
 
 ## Broken Images (avatars/selfies)
+
 - Files are stored under `storage/app/public/avatars` and `storage/app/public/selfies`.
 - URLs are generated via the `public` disk (`/storage/...`).
 - Fixes:
   - Recreate symlink: `php artisan storage:link`
   - Ensure web server follows symlinks
   - Check `APP_URL` matches the site
-  - Test direct file: `curl -I https://katusome.ssendi.dev/storage/selfies/<file>`
+  - Test direct file: `curl -I https://attendance.mubs.ac.ug/storage/selfies/<file>`
 
 ## 500 Error Triage
+
 - Check logs: `tail -n 200 storage/logs/laravel.log`
 - Common causes and fixes:
   - Missing `APP_KEY`: run `php artisan key:generate`
@@ -85,7 +94,8 @@ All emails are sent immediately via direct SMTP. There are no queue workers, out
   - Stale caches: `php artisan config:clear && php artisan route:clear && php artisan view:clear`
 
 ## Post-Deploy Validation
-- Visit `https://katusome.ssendi.dev/` and log in.
+
+- Visit `https://attendance.mubs.ac.ug/` and log in.
 - Verify avatars render on the navbar and profile page.
 - Perform a full Google OAuth sign-in flow.
 - Mark attendance with a selfie and confirm the image renders in summary.

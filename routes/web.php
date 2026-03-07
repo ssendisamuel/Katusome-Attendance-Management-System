@@ -141,7 +141,16 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     // Reports
     Route::get('reports', [ReportsController::class, 'dashboard'])->name('reports.dashboard');
     Route::get('reports/daily', [ReportsController::class, 'daily'])->name('reports.daily');
+    Route::get('reports/schedules', [ReportsController::class, 'scheduleSelector'])->name('reports.schedules');
+    Route::get('reports/schedule/{schedule}', [ReportsController::class, 'scheduleAttendance'])->name('reports.schedule.attendance');
     Route::get('reports/monthly', [ReportsController::class, 'monthly'])->name('reports.monthly');
+
+    // API endpoints for cascading filters
+    Route::get('api/faculties-by-campus', [ReportsController::class, 'facultiesByCampus'])->name('api.faculties-by-campus');
+    Route::get('api/departments-by-faculty', [ReportsController::class, 'departmentsByFaculty'])->name('api.departments-by-faculty');
+    Route::get('api/programs-by-department', [ReportsController::class, 'programsByDepartment'])->name('api.programs-by-department');
+    Route::get('api/courses-by-program', [ReportsController::class, 'coursesByProgram'])->name('api.courses-by-program');
+    Route::get('api/groups-by-program', [ReportsController::class, 'groupsByProgram'])->name('api.groups-by-program');
     Route::get('reports/individual', [ReportsController::class, 'individual'])->name('reports.individual');
     // Student search suggestions for individual report
     Route::get('reports/students/search', [StudentController::class, 'search'])
@@ -152,10 +161,27 @@ Route::middleware(['auth', 'can:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('admins', \App\Http\Controllers\Admin\AdminUserController::class);
 
     // Role-based User Management (lecturers, hods, deans, qa, principal, registrar, campus_chief)
+    // All Staff page
+    Route::get('users/all-staff', [\App\Http\Controllers\Admin\UserManagementController::class, 'allStaff'])->name('users.all-staff');
+    Route::get('users/all-staff/list', [\App\Http\Controllers\Admin\UserManagementController::class, 'getAllStaffList'])->name('users.all-staff.list');
+
+    // AJAX endpoints for dynamic search and role management
+    Route::get('users/search', [\App\Http\Controllers\Admin\UserManagementController::class, 'searchUsers'])->name('users.search');
+    Route::get('users/{role}/list', [\App\Http\Controllers\Admin\UserManagementController::class, 'getUsersByRole'])->name('users.list');
+    Route::post('users/assign-role', [\App\Http\Controllers\Admin\UserManagementController::class, 'assignRole'])->name('users.assign-role');
+    Route::delete('users/role/{userRole}', [\App\Http\Controllers\Admin\UserManagementController::class, 'removeRole'])->name('users.remove-role');
+
+    // Role management endpoints
+    Route::get('users/{user}/roles-detail', [\App\Http\Controllers\Admin\UserManagementController::class, 'getUserRolesDetail'])->name('users.roles-detail');
+    Route::post('users/{user}/set-primary-role', [\App\Http\Controllers\Admin\UserManagementController::class, 'setPrimaryRole'])->name('users.set-primary-role');
+    Route::delete('users/{user}/role/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'removeRoleByName'])->name('users.remove-role-by-name');
+
+    // Cascading dropdown APIs
     Route::get('users/api/faculty-departments/{faculty}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getFacultyDepartments'])->name('users.api.faculty-departments');
     Route::get('users/api/department-staff/{department}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getDepartmentStaff'])->name('users.api.department-staff');
     Route::get('users/api/faculty-staff/{faculty}', [\App\Http\Controllers\Admin\UserManagementController::class, 'getFacultyStaff'])->name('users.api.faculty-staff');
 
+    // Role-based user management pages
     Route::get('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.role')
         ->where('role', 'lecturer|hod|dean|qa_director|principal|registrar|campus_chief');
     Route::post('users/{role}', [\App\Http\Controllers\Admin\UserManagementController::class, 'store'])->name('users.store')
@@ -312,6 +338,10 @@ Route::middleware(['auth', 'can:lecturer'])->group(function () {
 
 // Change password (for authenticated users)
 Route::middleware(['auth'])->group(function () {
+    // Role switching
+    Route::get('/role/available', [\App\Http\Controllers\RoleSwitchController::class, 'getAvailableRoles'])->name('role.available');
+    Route::post('/role/switch', [\App\Http\Controllers\RoleSwitchController::class, 'switchRole'])->name('role.switch');
+
     // Mail status polling endpoints (authenticated)
     Route::get('/mail/status/welcome', [MailStatusController::class, 'welcome'])->name('mail.status.welcome');
     // Attendance confirmation mail status by attendance id

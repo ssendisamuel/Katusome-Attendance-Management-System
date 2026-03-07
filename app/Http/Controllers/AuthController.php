@@ -21,14 +21,16 @@ class AuthController extends Controller
             $request->session()->regenerate();
 
             $user = auth()->user();
+            $currentRole = $user->getCurrentRole();
+
             // Role-based intended redirect
-            if ($user && $user->role === 'admin') {
+            if ($user && in_array($currentRole, ['admin', 'super_admin', 'principal', 'registrar', 'campus_chief', 'qa_director', 'dean', 'hod'])) {
                 return redirect()->intended('/admin/dashboard');
             }
-            if ($user && $user->role === 'lecturer') {
+            if ($user && $currentRole === 'lecturer') {
                 return redirect()->intended(route('lecturer.attendance.index'));
             }
-            if ($user && $user->role === 'student') {
+            if ($user && $currentRole === 'student') {
                 return redirect()->intended(route('student.dashboard'));
             }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Traits\HasAttendanceFilters;
 use Illuminate\Http\Request;
 use App\Models\Attendance;
 use App\Models\Schedule;
@@ -10,6 +11,10 @@ use App\Models\Student;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\Lecturer;
+use App\Models\Campus;
+use App\Models\Faculty;
+use App\Models\Department;
+use App\Models\StudentEnrollment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\Program;
@@ -17,17 +22,31 @@ use App\Models\AcademicSemester;
 
 class ReportsController extends Controller
 {
+    use HasAttendanceFilters;
+
     public function dashboard(Request $request)
     {
         return view('admin.reports.dashboard');
     }
 
+    /**
+     * Daily Attendance Report - IMPROVED
+     * Shows all attendance records for a specific date with accurate calculations
+     */
     public function daily(Request $request)
     {
         $date = $request->input('date', Carbon::today()->toDateString());
-        $query = Attendance::with(['student', 'schedule.course', 'schedule.group', 'schedule.lecturer'])
-            ->whereDate('marked_at', $date);
 
+        // Base query with relationships
+        $query = Attendance::with(['student.enrollments', 'schedule.course', 'schedule.group', 'schedule.lecturer'])
+            ->whereHas('schedule', function($q) use ($date) {
+                $q->whereDate('start_at', $date);
+            });
+
+        // Apply hierarchical filters
+        $query = $this->applyHierarchicalFilters($query, $request, 'student');
+
+        // Additional filters
         if ($courseId = $request->input('course_id')) {
             $query->whereHas('schedule', fn($q) => $q->where('course_id', $courseId));
         }
@@ -41,36 +60,349 @@ class ReportsController extends Controller
             $query->where('status', $status);
         }
         if ($search = $request->input('search')) {
-            $query->whereHas('student', fn($q) => $q->where('name', 'like', "%$search%"));
+            $query->whereHas('student', fn($q) => $q->where('name', 'like', "%$search%")
+                ->orWhere('reg_no', 'like', "%$search%")
+                ->orWhere('student_no', 'like', "%$search%"));
         }
 
         $attendances = $query->orderByDesc('marked_at')->paginate(25);
 
-        // Summary
-        $expected = Schedule::whereDate('start_at', $date)->where('is_cancelled', false)->count();
-        $present = Attendance::whereDate('marked_at', $date)->where('status', 'present')->count();
-        $absent = Attendance::whereDate('marked_at', $date)->where('status', 'absent')->count();
-        $late = Attendance::whereDate('marked_at', $date)->where('status', 'late')->count();
-        $incomplete = Attendance::whereDate('marked_at', $date)
-            ->where('status', 'present')
-            ->whereNotNull('clock_out_time')
-            ->where('is_auto_clocked_out', true) // Flagged as auto-closed
-            ->count();
-        $percentage = ($present + $absent + $late) > 0 ? round(($present / max(($present + $absent + $late), 1)) * 100) : 0;
+        // ACCURATE SUMMARY CALCULATION
+        // Get all schedules for this date (filtered)
+        $schedulesQuery = Schedule::whereDate('start_at', $date)
+            ->where('is_cancelled', false);
 
-        return view('admin.reports.daily', [
+        // Apply same filters to schedules
+        if ($courseId = $request->input('course_id')) {
+            $schedulesQuery->where('course_id', $courseId);
+        }
+        if ($groupId = $request->input('group_id')) {
+            $schedulesQuery->where('group_id', $groupId);
+        }
+        if ($lecturerId = $request->input('lecturer_id')) {
+            $schedulesQuery->where('lecturer_id', $lecturerId);
+        }
+
+        $schedules = $schedulesQuery->with('group')->get();
+
+        // Calculate expected: Sum of (students in each group × 1 schedule)
+        $expectedTotal = 0;
+        $uniqueStudentIds = collect();
+
+        foreach ($schedules as $schedule) {
+            if ($schedule->group_id) {
+                $studentQuery = Student::where('group_id', $schedule->group_id);
+
+                // Apply hierarchical filters to student count
+                if ($campusId = $request->input('campus_id')) {
+                    $studentQuery->whereHas('enrollments', fn($q) => $q->where('campus_id', $campusId));
+                }
+                if ($facultyId = $request->input('faculty_id')) {
+                    $studentQuery->whereHas('enrollments.program.department.faculty', fn($q) => $q->where('id', $facultyId));
+                }
+                if ($departmentId = $request->input('department_id')) {
+                    $studentQuery->whereHas('enrollments.program.department', fn($q) => $q->where('id', $departmentId));
+                }
+                if ($programId = $request->input('program_id')) {
+                    $studentQuery->whereHas('enrollments.program', fn($q) => $q->where('id', $programId));
+                }
+                if ($year = $request->input('year_of_study')) {
+                    $studentQuery->whereHas('enrollments', fn($q) => $q->where('year_of_study', $year));
+                }
+
+                $groupStudentCount = $studentQuery->count();
+                $expectedTotal += $groupStudentCount;
+
+                // Track unique students for better metrics
+                $uniqueStudentIds = $uniqueStudentIds->merge($studentQuery->pluck('id'));
+            }
+        }
+
+        $uniqueStudentIds = $uniqueStudentIds->unique();
+
+        // Get attendance counts (with same filters applied via the query above)
+        $allAttendances = $query->get();
+        $present = $allAttendances->where('status', 'present')->count();
+        $late = $allAttendances->where('status', 'late')->count();
+        $excused = $allAttendances->where('status', 'excused')->count();
+        $explicitAbsent = $allAttendances->where('status', 'absent')->count();
+
+        // Calculate implicit absences
+        $totalRecorded = $allAttendances->count();
+        $implicitAbsent = max(0, $expectedTotal - $totalRecorded);
+        $totalAbsent = $explicitAbsent + $implicitAbsent;
+
+        // Attendance rate: (Present + Late) / Expected
+        $attended = $present + $late;
+        $percentage = $this->calculateAttendancePercentage($attended, $expectedTotal);
+
+        // Incomplete sessions (auto-clocked out)
+        $incomplete = $allAttendances->filter(function($att) {
+            return in_array($att->status, ['present', 'late']) &&
+                   $att->clock_out_time &&
+                   $att->is_auto_clocked_out;
+        })->count();
+
+        return view('admin.reports.daily', array_merge([
             'attendances' => $attendances,
             'date' => $date,
-            'expected' => $expected,
+            'expected' => $expectedTotal,
             'present' => $present,
-            'absent' => $absent,
             'late' => $late,
+            'excused' => $excused,
+            'absent' => $totalAbsent,
+            'explicit_absent' => $explicitAbsent,
+            'implicit_absent' => $implicitAbsent,
             'incomplete' => $incomplete,
             'percentage' => $percentage,
-            'courses' => Course::all(),
-            'groups' => Group::all(),
-            'lecturers' => Lecturer::all(),
+            'unique_students' => $uniqueStudentIds->count(),
+            'total_schedules' => $schedules->count(),
+            'lecturers' => Lecturer::with('user')->get()->sortBy('user.name'),
+        ], $this->getFilterData()));
+    }
+
+    /**
+     * Schedule Selector for Class Reports
+     * Allows filtering and selecting a schedule to view its attendance
+     */
+    public function scheduleSelector(Request $request)
+    {
+        $query = Schedule::with(['course', 'group', 'lecturer', 'venue', 'academicSemester'])
+            ->where('is_cancelled', false)
+            ->orderByDesc('start_at');
+
+        // Date filter
+        if ($date = $request->input('date')) {
+            $query->whereDate('start_at', $date);
+        } else {
+            // Default to today and upcoming
+            $query->whereDate('start_at', '>=', today());
+        }
+
+        // Apply hierarchical filters
+        if ($campusId = $request->input('campus_id')) {
+            $query->whereHas('group.students.enrollments', fn($q) => $q->where('campus_id', $campusId));
+        }
+        if ($facultyId = $request->input('faculty_id')) {
+            $query->whereHas('course.programs.department.faculty', fn($q) => $q->where('id', $facultyId));
+        }
+        if ($departmentId = $request->input('department_id')) {
+            $query->whereHas('course.programs.department', fn($q) => $q->where('id', $departmentId));
+        }
+        if ($programId = $request->input('program_id')) {
+            $query->whereHas('course.programs', fn($q) => $q->where('id', $programId));
+        }
+        if ($courseId = $request->input('course_id')) {
+            $query->where('course_id', $courseId);
+        }
+        if ($groupId = $request->input('group_id')) {
+            $query->where('group_id', $groupId);
+        }
+        if ($lecturerId = $request->input('lecturer_id')) {
+            $query->where('lecturer_id', $lecturerId);
+        }
+
+        $schedules = $query->paginate(25);
+
+        return view('admin.reports.schedule-selector', array_merge([
+            'schedules' => $schedules,
+            'date' => $date ?? today()->toDateString(),
+            'lecturers' => Lecturer::with('user')->get()->sortBy('user.name'),
+        ], $this->getFilterData()));
+    }
+
+    /**
+     * API: Get faculties by campus
+     */
+    public function facultiesByCampus(Request $request)
+    {
+        $campusId = $request->input('campus_id');
+        if (!$campusId) {
+            return response()->json([]);
+        }
+
+        $faculties = Faculty::where('campus_id', $campusId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($faculties);
+    }
+
+    /**
+     * API: Get departments by faculty
+     */
+    public function departmentsByFaculty(Request $request)
+    {
+        $facultyId = $request->input('faculty_id');
+        if (!$facultyId) {
+            return response()->json([]);
+        }
+
+        $departments = Department::where('faculty_id', $facultyId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($departments);
+    }
+
+    /**
+     * API: Get programs by department
+     */
+    public function programsByDepartment(Request $request)
+    {
+        $departmentId = $request->input('department_id');
+        if (!$departmentId) {
+            return response()->json([]);
+        }
+
+        $programs = Program::where('department_id', $departmentId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        return response()->json($programs);
+    }
+
+    /**
+     * API: Get courses by program (and optionally year of study)
+     */
+    public function coursesByProgram(Request $request)
+    {
+        $programId = $request->input('program_id');
+        if (!$programId) {
+            return response()->json([]);
+        }
+
+        $query = Course::whereHas('programs', function($q) use ($programId) {
+            $q->where('programs.id', $programId);
+        });
+
+        // Filter by year of study if provided
+        if ($year = $request->input('year_of_study')) {
+            $query->whereHas('programs', function($q) use ($programId, $year) {
+                $q->where('programs.id', $programId)
+                  ->where('course_program.year_of_study', $year);
+            });
+        }
+
+        $courses = $query->orderBy('code')->get(['id', 'name', 'code']);
+
+        return response()->json($courses);
+    }
+
+    /**
+     * API: Get groups by program (and optionally year of study)
+     */
+    public function groupsByProgram(Request $request)
+    {
+        $programId = $request->input('program_id');
+        if (!$programId) {
+            return response()->json([]);
+        }
+
+        // Get groups that have students enrolled in this program
+        $query = Group::whereHas('students.enrollments', function($q) use ($programId) {
+            $q->where('program_id', $programId);
+        });
+
+        // Filter by year of study if provided
+        if ($year = $request->input('year_of_study')) {
+            $query->whereHas('students.enrollments', function($q) use ($programId, $year) {
+                $q->where('program_id', $programId)
+                  ->where('year_of_study', $year);
+            });
+        }
+
+        $groups = $query->orderBy('name')->get(['id', 'name']);
+
+        return response()->json($groups);
+    }
+
+    /**
+     * Real-Time Schedule Attendance Report - NEW
+     * Shows live attendance for a specific class session
+     */
+    public function scheduleAttendance(Request $request, Schedule $schedule)
+    {
+        $schedule->load(['course', 'group', 'lecturer', 'venue', 'academicSemester']);
+
+        // Get expected students for this schedule
+        $expectedStudentsQuery = Student::whereHas('enrollments', function($q) use ($schedule) {
+            $q->where('group_id', $schedule->group_id)
+              ->where('academic_semester_id', $schedule->academic_semester_id);
+        });
+
+        $expectedStudents = $expectedStudentsQuery->with(['enrollments.program'])->orderBy('name')->get();
+        $expectedCount = $expectedStudents->count();
+
+        // Get attendance records for this schedule
+        $attendances = Attendance::where('schedule_id', $schedule->id)
+            ->with('student')
+            ->get();
+
+        // Calculate metrics
+        $present = $attendances->where('status', 'present')->count();
+        $late = $attendances->where('status', 'late')->count();
+        $excused = $attendances->where('status', 'excused')->count();
+        $explicitAbsent = $attendances->where('status', 'absent')->count();
+
+        $checkedIn = $present + $late;
+        $notCheckedIn = $expectedCount - $attendances->count();
+        $implicitAbsent = max(0, $notCheckedIn);
+        $totalAbsent = $explicitAbsent + $implicitAbsent;
+
+        $attendanceRate = $this->calculateAttendancePercentage($checkedIn, $expectedCount);
+
+        // Average check-in time
+        $avgCheckInTime = null;
+        if ($checkedIn > 0) {
+            $checkInTimes = $attendances->whereIn('status', ['present', 'late'])
+                ->map(function($att) use ($schedule) {
+                    return $att->marked_at->diffInMinutes($schedule->start_at);
+                });
+            $avgCheckInTime = round($checkInTimes->avg());
+        }
+
+        // Build student list with status
+        $studentList = $expectedStudents->map(function($student) use ($attendances) {
+            $attendance = $attendances->firstWhere('student_id', $student->id);
+
+            return [
+                'student' => $student,
+                'attendance' => $attendance,
+                'status' => $attendance ? $attendance->status : 'not_checked_in',
+                'checked_in_at' => $attendance ? $attendance->marked_at : null,
+                'has_selfie' => $attendance && $attendance->selfie_path ? true : false,
+                'clocked_out' => $attendance && $attendance->clock_out_time ? true : false,
+            ];
+        });
+
+        // Sort: checked in first, then by name
+        $studentList = $studentList->sortBy([
+            fn($a, $b) => ($a['status'] === 'not_checked_in' ? 1 : 0) <=> ($b['status'] === 'not_checked_in' ? 1 : 0),
+            fn($a, $b) => $a['student']->name <=> $b['student']->name,
         ]);
+
+        $stats = [
+            'expected' => $expectedCount,
+            'checked_in' => $checkedIn,
+            'not_checked_in' => $notCheckedIn,
+            'present' => $present,
+            'late' => $late,
+            'excused' => $excused,
+            'absent' => $totalAbsent,
+            'explicit_absent' => $explicitAbsent,
+            'implicit_absent' => $implicitAbsent,
+            'attendance_rate' => $attendanceRate,
+            'avg_check_in_time' => $avgCheckInTime,
+            'late_arrivals' => $late,
+        ];
+
+        // Export to PDF if requested
+        if ($request->input('export') === 'pdf') {
+            return $this->exportScheduleAttendancePdf($schedule, $studentList, $stats);
+        }
+
+        return view('admin.reports.schedule-attendance', compact('schedule', 'studentList', 'stats'));
     }
 
     public function monthly(Request $request)
@@ -81,7 +413,30 @@ class ReportsController extends Controller
         $start = Carbon::create($year, $month, 1)->startOfMonth();
         $end = (clone $start)->endOfMonth();
 
-        $students = Student::with(['group', 'program'])->get();
+        // Get students with filters
+        $studentsQuery = Student::with(['group', 'program', 'enrollments']);
+
+        // Apply hierarchical filters
+        if ($campusId = $request->input('campus_id')) {
+            $studentsQuery->whereHas('enrollments', fn($q) => $q->where('campus_id', $campusId));
+        }
+        if ($facultyId = $request->input('faculty_id')) {
+            $studentsQuery->whereHas('enrollments.program.department.faculty', fn($q) => $q->where('id', $facultyId));
+        }
+        if ($departmentId = $request->input('department_id')) {
+            $studentsQuery->whereHas('enrollments.program.department', fn($q) => $q->where('id', $departmentId));
+        }
+        if ($programId = $request->input('program_id')) {
+            $studentsQuery->whereHas('enrollments.program', fn($q) => $q->where('id', $programId));
+        }
+        if ($year_of_study = $request->input('year_of_study')) {
+            $studentsQuery->whereHas('enrollments', fn($q) => $q->where('year_of_study', $year_of_study));
+        }
+        if ($groupId = $request->input('group_id')) {
+            $studentsQuery->whereHas('enrollments', fn($q) => $q->where('group_id', $groupId));
+        }
+
+        $students = $studentsQuery->get();
 
         // Optimization: Get expected schedule counts per group for this month
         $groupScheduleCounts = Schedule::whereBetween('start_at', [$start, $end])
@@ -92,51 +447,90 @@ class ReportsController extends Controller
             ->pluck('total', 'group_id');
 
         $summary = [];
+        $atRiskCount = 0;
+
         foreach ($students as $student) {
             $records = Attendance::where('student_id', $student->id)
                 ->whereBetween('marked_at', [$start, $end])
                 ->get();
-            $present = $records->where('status', 'present')->count();
-            $absent = $records->where('status', 'absent')->count(); // Records marked absent
-            $late = $records->where('status', 'late')->count();
 
-            // Expected is based on Group Schedules, falling back to records count if 0 (e.g. no group assigned or special case)
-            $expected = $groupScheduleCounts[$student->group_id] ?? $records->count();
-            // Ensure expected is at least the sum of records (in case of extra make-up classes not in group sched)
+            $present = $records->where('status', 'present')->count();
+            $late = $records->where('status', 'late')->count();
+            $excused = $records->where('status', 'excused')->count();
+            $explicitAbsent = $records->where('status', 'absent')->count();
+
+            // Calculate expected based on group schedules
+            $expected = $groupScheduleCounts[$student->group_id] ?? 0;
+
+            // Ensure expected is at least the recorded count (for data integrity)
             $expected = max($expected, $records->count());
 
-            $percentage = $expected > 0 ? round(($present / $expected) * 100) : 0;
+            // Calculate implicit absences
+            $totalRecorded = $records->count();
+            $implicitAbsent = max(0, $expected - $totalRecorded);
+            $totalAbsent = $explicitAbsent + $implicitAbsent;
+
+            // Attendance percentage
+            $attended = $present + $late;
+            $percentage = $this->calculateAttendancePercentage($attended, $expected);
+
+            // Flag at-risk students (< 70%)
+            $atRisk = $percentage < 70;
+            if ($atRisk) {
+                $atRiskCount++;
+            }
 
             $summary[] = [
                 'student' => $student,
                 'present' => $present,
-                'absent' => $absent,
                 'late' => $late,
-                'totalDays' => $expected, // Display Expected sessions
+                'excused' => $excused,
+                'absent' => $totalAbsent,
+                'explicit_absent' => $explicitAbsent,
+                'implicit_absent' => $implicitAbsent,
+                'expected' => $expected,
                 'percentage' => $percentage,
+                'at_risk' => $atRisk,
             ];
         }
 
-        // Simple department/class aggregates
+        // Sort by percentage (at-risk first)
+        usort($summary, function($a, $b) {
+            if ($a['at_risk'] !== $b['at_risk']) {
+                return $b['at_risk'] <=> $a['at_risk']; // at_risk first
+            }
+            return $a['percentage'] <=> $b['percentage']; // then by percentage ascending
+        });
+
+        // Group aggregates
         $byGroup = collect($summary)->groupBy(fn($row) => optional($row['student']->group)->name)->map(function ($rows) {
-            $expected = $rows->sum('totalDays');
+            $expected = $rows->sum('expected');
             $present = $rows->sum('present');
+            $late = $rows->sum('late');
             $absent = $rows->sum('absent');
-            $rate = $expected > 0 ? round(($present / $expected) * 100) : 0;
+            $attended = $present + $late;
+            $rate = $expected > 0 ? round(($attended / $expected) * 100, 2) : 0;
+            $atRiskCount = $rows->where('at_risk', true)->count();
+
             return [
                 'expected' => $expected,
                 'present' => $present,
+                'late' => $late,
                 'absent' => $absent,
                 'rate' => $rate,
+                'at_risk_count' => $atRiskCount,
+                'student_count' => $rows->count(),
             ];
         });
 
-        return view('admin.reports.monthly', [
+        return view('admin.reports.monthly', array_merge([
             'summary' => $summary,
             'byGroup' => $byGroup,
             'month' => $month,
             'year' => $year,
-        ]);
+            'at_risk_count' => $atRiskCount,
+            'total_students' => count($summary),
+        ], $this->getFilterData()));
     }
 
     // JSON endpoints for full-data export
@@ -638,57 +1032,58 @@ class ReportsController extends Controller
         return AcademicSemester::active()->first() ?? AcademicSemester::orderByDesc('start_date')->first();
     }
 
+    /**
+     * Course Attendance Report - IMPROVED
+     * Shows attendance statistics per course with 70% threshold view
+     */
     public function course(Request $request)
     {
         $semesters = AcademicSemester::orderByDesc('start_date')->get();
         $semester = $this->getActiveSemester($request->input('semester_id'));
-        $courses = Course::orderBy('name')->get();
 
         $selectedCourse = null;
         $stats = [];
         $breakdown = [];
-        $studentStats = [];
-        $atRisk = collect();
+        $studentsAboveThreshold = [];
+        $studentsBelowThreshold = [];
 
         if ($request->has('course_id')) {
             $selectedCourse = Course::find($request->input('course_id'));
+
             if ($selectedCourse && $semester) {
-                // Total schedules for this course in this semester
-                $schedules = Schedule::where('course_id', $selectedCourse->id)
+                // Get schedules for this course in this semester
+                $schedulesQuery = Schedule::where('course_id', $selectedCourse->id)
                     ->where('academic_semester_id', $semester->id)
-                    ->where('is_cancelled', false)
-                    ->get();
+                    ->where('is_cancelled', false);
 
-                $totalClasses = $schedules->count(); // Count of actual classes held (or scheduled)
+                // Apply filters
+                if ($campusId = $request->input('campus_id')) {
+                    $schedulesQuery->whereHas('group.students.enrollments', fn($q) => $q->where('campus_id', $campusId));
+                }
+                if ($facultyId = $request->input('faculty_id')) {
+                    $schedulesQuery->whereHas('group.students.enrollments.program.department.faculty', fn($q) => $q->where('id', $facultyId));
+                }
+                if ($departmentId = $request->input('department_id')) {
+                    $schedulesQuery->whereHas('group.students.enrollments.program.department', fn($q) => $q->where('id', $departmentId));
+                }
+                if ($programId = $request->input('program_id')) {
+                    $schedulesQuery->whereHas('group.students.enrollments.program', fn($q) => $q->where('id', $programId));
+                }
+                if ($year = $request->input('year_of_study')) {
+                    $schedulesQuery->whereHas('group.students.enrollments', fn($q) => $q->where('year_of_study', $year));
+                }
+                if ($groupId = $request->input('group_id')) {
+                    $schedulesQuery->where('group_id', $groupId);
+                }
 
-                // Aggregate Attendance
+                $schedules = $schedulesQuery->with('group')->get();
+                $totalClasses = $schedules->count();
+
+                // Get all attendances for these schedules
                 $attendances = Attendance::whereIn('schedule_id', $schedules->pluck('id'))->get();
-                $present = $attendances->where('status', 'present')->count();
-                $absent = $attendances->where('status', 'absent')->count();
-                $late = $attendances->where('status', 'late')->count();
-                $totalAtt = $present + $absent + $late;
-
-                // Calculate expected total attendance entries based on student count per group * classes?
-                // For "Course Rate", Present / (Total Students * Total Classes) is ideal but hard.
-                // Let's stick to simple "Present / Total Records" for the top stat if we can't easily get total expected.
-                // Actually, let's look at the student-level aggregation for accuracy.
-
-                // But for now, let's update the rate to be relative to *something* consistent.
-                // If we use Total Records, we miss unmarked absences.
-                // Best effort for top stat: Average of student rates? Or just sum(Present) / sum(Expected)?
-                // Let's hold on top stat, but definitely fix Breakdown and StudentStats.
-
-                $stats = [
-                    'total_classes' => $totalClasses,
-                    'total_records' => $totalAtt,
-                    'present' => $present,
-                    'absent' => $absent,
-                    'late' => $late,
-                    'rate' => $totalAtt > 0 ? round(($present / $totalAtt) * 100) : 0, // Keep simple for now or refactor to avg student rate
-                ];
 
                 // Breakdown by Group
-                $groupIds = $schedules->pluck('group_id')->unique();
+                $groupIds = $schedules->pluck('group_id')->unique()->filter();
 
                 foreach ($groupIds as $gid) {
                     $grp = Group::find($gid);
@@ -696,113 +1091,120 @@ class ReportsController extends Controller
 
                     $gScheds = $schedules->where('group_id', $gid);
                     $gSchedCount = $gScheds->count();
-
                     $gAtt = Attendance::whereIn('schedule_id', $gScheds->pluck('id'))->get();
-                    $p = $gAtt->where('status', 'present')->count();
 
-                    // We need total students in group to get "Expected Total Attendance" for this group
-                    // Expected = StudentsInGroup * ClassesHeld
+                    $present = $gAtt->where('status', 'present')->count();
+                    $late = $gAtt->where('status', 'late')->count();
+                    $attended = $present + $late;
+
+                    // Expected = Students in Group × Classes Held
                     $studentCount = Student::where('group_id', $gid)->count();
                     $expectedTotal = $studentCount * $gSchedCount;
 
-                    $rate = $expectedTotal > 0 ? round(($p / $expectedTotal) * 100) : 0;
+                    $rate = $this->calculateAttendancePercentage($attended, $expectedTotal);
 
                     $breakdown[] = [
                         'group' => $grp,
                         'classes' => $gSchedCount,
-                        'present' => $p,
+                        'students' => $studentCount,
+                        'expected' => $expectedTotal,
+                        'attended' => $attended,
                         'rate' => $rate
                     ];
                 }
 
-                // Student Breakdown
-                // We have $attendances for the entire course/semester context.
-                // We need to fetch ALL students belonging to the groups that had schedules,
-                // OR just students who have at least one record?
-                // Using "Students in Groups that had schedules" is safer to catch students with 0 records.
+                // Student-level breakdown with 70% threshold
+                $participatingGroupIds = $groupIds->values();
+                $allStudentsQuery = Student::whereIn('group_id', $participatingGroupIds)
+                    ->with(['group', 'enrollments.program']);
 
-                $participatingGroupIds = $groupIds->filter()->values();
-                if ($participatingGroupIds->isNotEmpty()) {
-                    $allStudents = Student::whereIn('group_id', $participatingGroupIds)->with('group')->get();
-                } else {
-                     // Fallback if no groups defined (mixed), use existing records
-                     $allStudents = collect();
+                // Apply same filters to students
+                if ($campusId = $request->input('campus_id')) {
+                    $allStudentsQuery->whereHas('enrollments', fn($q) => $q->where('campus_id', $campusId));
+                }
+                if ($facultyId = $request->input('faculty_id')) {
+                    $allStudentsQuery->whereHas('enrollments.program.department.faculty', fn($q) => $q->where('id', $facultyId));
+                }
+                if ($departmentId = $request->input('department_id')) {
+                    $allStudentsQuery->whereHas('enrollments.program.department', fn($q) => $q->where('id', $departmentId));
+                }
+                if ($programId = $request->input('program_id')) {
+                    $allStudentsQuery->whereHas('enrollments.program', fn($q) => $q->where('id', $programId));
+                }
+                if ($year = $request->input('year_of_study')) {
+                    $allStudentsQuery->whereHas('enrollments', fn($q) => $q->where('year_of_study', $year));
                 }
 
-                $studentStats = [];
+                $allStudents = $allStudentsQuery->get();
                 $groupedRecords = $attendances->groupBy('student_id');
 
                 foreach ($allStudents as $student) {
                     $records = $groupedRecords->get($student->id, collect());
 
-                    $sPresent = $records->where('status', 'present')->count();
+                    $present = $records->where('status', 'present')->count();
+                    $late = $records->where('status', 'late')->count();
+                    $attended = $present + $late;
 
-                    // Calculate expected for this specific student based on their group's schedules in this course
+                    // Expected = Classes held for this student's group
                     $groupSchedCount = $schedules->where('group_id', $student->group_id)->count();
+                    $expected = $groupSchedCount;
 
-                    $expected = max($groupSchedCount, $records->count());
-                    $sRate = $expected > 0 ? round(($sPresent / $expected) * 100) : 0;
+                    $percentage = $this->calculateAttendancePercentage($attended, $expected);
+                    $meetsThreshold = $percentage >= 70;
 
-                    $studentStats[] = [
+                    $studentData = [
                         'student' => $student,
-                        'total_records' => $expected, // Show Expected
-                        'present' => $sPresent,
-                        'rate' => $sRate
+                        'expected' => $expected,
+                        'attended' => $attended,
+                        'present' => $present,
+                        'late' => $late,
+                        'percentage' => $percentage,
+                        'meets_threshold' => $meetsThreshold,
                     ];
-                }
 
-                // Also add students who participated but aren't in the groups (e.g. changed groups)?
-                // For simplicity, let's stick to the main loop properly.
-                // If a student has records but isn't in 'allStudents' (group mismatch), they might be missed.
-                // Let's merge in any missing students from $groupedRecords.
-                foreach ($groupedRecords as $sid => $recs) {
-                    if (!$allStudents->contains('id', $sid)) {
-                         $student = $recs->first()->student;
-                         if(!$student) continue;
-                         $sPresent = $recs->where('status', 'present')->count();
-                         // We don't know their "Expected" easily if group logic fails, default to record count
-                         $expected = $recs->count();
-                         $sRate = $expected > 0 ? round(($sPresent / $expected) * 100) : 0;
-                         $studentStats[] = [
-                            'student' => $student,
-                            'total_records' => $expected,
-                            'present' => $sPresent,
-                            'rate' => $sRate
-                        ];
+                    if ($meetsThreshold) {
+                        $studentsAboveThreshold[] = $studentData;
+                    } else {
+                        $studentsBelowThreshold[] = $studentData;
                     }
                 }
 
-                // Sort by rate ascending (worst first) or name? Let's do name.
-                usort($studentStats, fn($a, $b) => strcmp($a['student']->name, $b['student']->name));
+                // Sort both lists by percentage
+                usort($studentsAboveThreshold, fn($a, $b) => $b['percentage'] <=> $a['percentage']);
+                usort($studentsBelowThreshold, fn($a, $b) => $a['percentage'] <=> $b['percentage']);
 
+                // Overall stats
+                $totalStudents = count($studentsAboveThreshold) + count($studentsBelowThreshold);
+                $totalExpected = collect($breakdown)->sum('expected');
+                $totalAttended = collect($breakdown)->sum('attended');
+                $overallRate = $this->calculateAttendancePercentage($totalAttended, $totalExpected);
+
+                $stats = [
+                    'total_classes' => $totalClasses,
+                    'total_students' => $totalStudents,
+                    'students_above_70' => count($studentsAboveThreshold),
+                    'students_below_70' => count($studentsBelowThreshold),
+                    'total_expected' => $totalExpected,
+                    'total_attended' => $totalAttended,
+                    'overall_rate' => $overallRate,
+                ];
+
+                // CSV Export
                 if ($request->input('export') === 'csv') {
-                    $filename = 'course_report_' . $selectedCourse->code . '_' . now()->format('Ymd_His') . '.csv';
-                    return response()->streamDownload(function () use ($studentStats, $selectedCourse, $semester) {
-                        $file = fopen('php://output', 'w');
-                        fputcsv($file, ['Course Report: ' . $selectedCourse->name . ' (' . $selectedCourse->code . ')']);
-                        fputcsv($file, ['Semester: ' . $semester->year . ' ' . $semester->semester]);
-                        fputcsv($file, []);
-                        fputcsv($file, ['Student Name', 'Reg No', 'Classes Marked', 'Present', 'Attendance Rate (%)']);
-
-                        foreach ($studentStats as $row) {
-                            fputcsv($file, [
-                                $row['student']->name,
-                                $row['student']->reg_no,
-                                $row['total_records'],
-                                $row['present'],
-                                $row['rate']
-                            ]);
-                        }
-                        fclose($file);
-                    }, $filename);
+                    return $this->exportCourseReportCsv($selectedCourse, $semester, $stats, $studentsAboveThreshold, $studentsBelowThreshold);
                 }
             }
         }
 
-        return view('admin.reports.course', compact(
-            'semesters', 'semester', 'courses', 'selectedCourse', 'stats', 'breakdown',
-            'studentStats'
-        ));
+        return view('admin.reports.course', array_merge([
+            'semesters' => $semesters,
+            'semester' => $semester,
+            'selectedCourse' => $selectedCourse,
+            'stats' => $stats,
+            'breakdown' => $breakdown,
+            'studentsAboveThreshold' => $studentsAboveThreshold,
+            'studentsBelowThreshold' => $studentsBelowThreshold,
+        ], $this->getFilterData()));
     }
 
     public function group(Request $request)
@@ -1373,5 +1775,194 @@ return view('admin.reports.group', compact('semesters', 'semester', 'groups', 'p
             fclose($out);
         };
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export Schedule Attendance to PDF
+     */
+    protected function exportScheduleAttendancePdf($schedule, $studentList, $stats)
+    {
+        // For now, return a simple CSV until PDF library is configured
+        $filename = 'schedule_attendance_' . $schedule->id . '_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($schedule, $studentList, $stats) {
+            $out = fopen('php://output', 'w');
+
+            // Header
+            fputcsv($out, ['Makerere University Business School']);
+            fputcsv($out, ['Real-Time Schedule Attendance Report']);
+            fputcsv($out, ['']);
+            fputcsv($out, ['Course', $schedule->course->name . ' (' . $schedule->course->code . ')']);
+            fputcsv($out, ['Group', $schedule->group->name ?? 'N/A']);
+            fputcsv($out, ['Lecturer', $schedule->lecturer->name ?? 'N/A']);
+            fputcsv($out, ['Date & Time', $schedule->start_at->format('d M Y, H:i') . ' - ' . $schedule->end_at->format('H:i')]);
+            fputcsv($out, ['Venue', $schedule->location]);
+            fputcsv($out, ['']);
+
+            // Summary
+            fputcsv($out, ['Summary Statistics']);
+            fputcsv($out, ['Expected Students', $stats['expected']]);
+            fputcsv($out, ['Checked In', $stats['checked_in']]);
+            fputcsv($out, ['Not Checked In', $stats['not_checked_in']]);
+            fputcsv($out, ['Present', $stats['present']]);
+            fputcsv($out, ['Late', $stats['late']]);
+            fputcsv($out, ['Attendance Rate', $stats['attendance_rate'] . '%']);
+            if ($stats['avg_check_in_time'] !== null) {
+                fputcsv($out, ['Avg Check-in Time', $stats['avg_check_in_time'] . ' minutes after start']);
+            }
+            fputcsv($out, ['']);
+
+            // Student List
+            fputcsv($out, ['Student Name', 'Reg No', 'Status', 'Check-in Time', 'Has Selfie', 'Clocked Out']);
+
+            foreach ($studentList as $item) {
+                fputcsv($out, [
+                    $item['student']->name,
+                    $item['student']->reg_no ?? $item['student']->student_no,
+                    ucfirst(str_replace('_', ' ', $item['status'])),
+                    $item['checked_in_at'] ? $item['checked_in_at']->format('H:i') : '—',
+                    $item['has_selfie'] ? 'Yes' : 'No',
+                    $item['clocked_out'] ? 'Yes' : 'No',
+                ]);
+            }
+
+            fputcsv($out, ['']);
+            fputcsv($out, ['Generated On', now()->format('d M Y, h:i A')]);
+            fputcsv($out, ['Makerere University Business School', 'attendance@mubs.ac.ug']);
+
+            fclose($out);
+        }, $filename);
+    }
+
+    /**
+     * Export Course Report to CSV
+     */
+    protected function exportCourseReportCsv($course, $semester, $stats, $studentsAbove, $studentsBelow)
+    {
+        $filename = 'course_report_' . $course->code . '_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($course, $semester, $stats, $studentsAbove, $studentsBelow) {
+            $out = fopen('php://output', 'w');
+
+            // Header
+            fputcsv($out, ['Makerere University Business School']);
+            fputcsv($out, ['Course Attendance Report']);
+            fputcsv($out, ['']);
+            fputcsv($out, ['Course', $course->name . ' (' . $course->code . ')']);
+            fputcsv($out, ['Semester', $semester->year . ' ' . $semester->semester]);
+            fputcsv($out, ['Generated On', now()->format('d M Y, h:i A')]);
+            fputcsv($out, ['']);
+
+            // Summary
+            fputcsv($out, ['Summary Statistics']);
+            fputcsv($out, ['Total Classes', $stats['total_classes']]);
+            fputcsv($out, ['Total Students', $stats['total_students']]);
+            fputcsv($out, ['Students Above 70%', $stats['students_above_70']]);
+            fputcsv($out, ['Students Below 70%', $stats['students_below_70']]);
+            fputcsv($out, ['Overall Attendance Rate', $stats['overall_rate'] . '%']);
+            fputcsv($out, ['']);
+
+            // Students Meeting Threshold
+            fputcsv($out, ['STUDENTS MEETING 70% THRESHOLD (' . count($studentsAbove) . ')']);
+            fputcsv($out, ['Student Name', 'Reg No', 'Group', 'Expected', 'Attended', 'Attendance %']);
+
+            foreach ($studentsAbove as $item) {
+                fputcsv($out, [
+                    $item['student']->name,
+                    $item['student']->reg_no ?? $item['student']->student_no,
+                    $item['student']->group->name ?? 'N/A',
+                    $item['expected'],
+                    $item['attended'],
+                    $item['percentage'] . '%',
+                ]);
+            }
+
+            fputcsv($out, ['']);
+
+            // Students Below Threshold
+            fputcsv($out, ['STUDENTS BELOW 70% THRESHOLD (' . count($studentsBelow) . ') - AT RISK']);
+            fputcsv($out, ['Student Name', 'Reg No', 'Group', 'Expected', 'Attended', 'Attendance %']);
+
+            foreach ($studentsBelow as $item) {
+                fputcsv($out, [
+                    $item['student']->name,
+                    $item['student']->reg_no ?? $item['student']->student_no,
+                    $item['student']->group->name ?? 'N/A',
+                    $item['expected'],
+                    $item['attended'],
+                    $item['percentage'] . '%',
+                ]);
+            }
+
+            fputcsv($out, ['']);
+            fputcsv($out, ['Makerere University Business School', 'attendance@mubs.ac.ug']);
+            fputcsv($out, ['This report is system-generated. Unauthorized distribution is prohibited.']);
+
+            fclose($out);
+        }, $filename);
+    }
+
+    // API endpoints for cascading filters
+    public function getFacultiesByCampus(Request $request)
+    {
+        $campusId = $request->input('campus_id');
+        $faculties = Faculty::whereHas('departments.campus', fn($q) => $q->where('id', $campusId))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($faculties);
+    }
+
+    public function getDepartmentsByFaculty(Request $request)
+    {
+        $facultyId = $request->input('faculty_id');
+        $departments = Department::where('faculty_id', $facultyId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($departments);
+    }
+
+    public function getProgramsByDepartment(Request $request)
+    {
+        $departmentId = $request->input('department_id');
+        $programs = Program::where('department_id', $departmentId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        return response()->json($programs);
+    }
+
+    public function getCoursesByProgram(Request $request)
+    {
+        $programId = $request->input('program_id');
+        $yearOfStudy = $request->input('year_of_study');
+
+        $query = Course::whereHas('programs', function($q) use ($programId, $yearOfStudy) {
+            $q->where('programs.id', $programId);
+            if ($yearOfStudy) {
+                $q->where('course_program.year_of_study', $yearOfStudy);
+            }
+        })->orderBy('code');
+
+        $courses = $query->get(['id', 'name', 'code']);
+
+        return response()->json($courses);
+    }
+
+    public function getGroupsByProgram(Request $request)
+    {
+        $programId = $request->input('program_id');
+        $yearOfStudy = $request->input('year_of_study');
+
+        $query = Group::whereHas('students.enrollments.program', fn($q) => $q->where('id', $programId));
+
+        if ($yearOfStudy) {
+            $query->whereHas('students.enrollments', fn($q) => $q->where('year_of_study', $yearOfStudy));
+        }
+
+        $groups = $query->distinct()->orderBy('name')->get(['id', 'name']);
+
+        return response()->json($groups);
     }
 }

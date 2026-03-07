@@ -6,22 +6,26 @@
   $avatarUrl = $defaultAvatar;
   $initials = 'U';
   if ($user) {
-    $userHasImage = !empty($user->avatar_url ?? '') || !empty($user->profile_photo_url ?? '');
-    $avatarUrl = !empty($user->avatar_url ?? '')
-      ? $user->avatar_url
-      : (!empty($user->profile_photo_url ?? '') ? $user->profile_photo_url : $defaultAvatar);
-    $name = trim($user->name ?? 'User');
-    $initials = collect(explode(' ', $name))
-      ->map(fn($p) => mb_substr($p, 0, 1))
-      ->implode('');
-    $initials = mb_strtoupper(mb_substr($initials, 0, 2));
+      $userHasImage = !empty($user->avatar_url ?? '') || !empty($user->profile_photo_url ?? '');
+      $avatarUrl = !empty($user->avatar_url ?? '')
+          ? $user->avatar_url
+          : (!empty($user->profile_photo_url ?? '')
+              ? $user->profile_photo_url
+              : $defaultAvatar);
+      $name = trim($user->name ?? 'User');
+      $initials = collect(explode(' ', $name))->map(fn($p) => mb_substr($p, 0, 1))->implode('');
+      $initials = mb_strtoupper(mb_substr($initials, 0, 2));
   }
   // Role label for display in dropdown
   $roleLabel = 'User';
   if ($user && !empty($user->role)) {
-    if ($user->role === 'student') { $roleLabel = 'Student'; }
-    elseif ($user->role === 'lecturer') { $roleLabel = 'Lecturer'; }
-    elseif ($user->role === 'admin') { $roleLabel = 'Admin'; }
+      if ($user->role === 'student') {
+          $roleLabel = 'Student';
+      } elseif ($user->role === 'lecturer') {
+          $roleLabel = 'Lecturer';
+      } elseif ($user->role === 'admin') {
+          $roleLabel = 'Admin';
+      }
   }
 @endphp
 
@@ -30,7 +34,7 @@
   <div class="navbar-brand app-brand demo d-none d-xl-flex py-0 me-6">
     <a href="{{ url('/') }}" class="app-brand-link gap-2">
       <span class="app-brand-logo demo">@include('_partials.macros')</span>
-  <span class="app-brand-text demo menu-text fw-semibold ms-1">{{ config('variables.templateName') }}</span>
+      <span class="app-brand-text demo menu-text fw-semibold ms-1">{{ config('variables.templateName') }}</span>
     </a>
 
     <!-- Display menu close icon only for horizontal-menu with navbar-full -->
@@ -92,10 +96,12 @@
     <li class="nav-item navbar-dropdown dropdown-user dropdown">
       <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
         <div class="avatar avatar-online">
-          @if($user && $userHasImage)
-            <img src="{{ $avatarUrl }}" alt="User avatar" class="rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+          @if ($user && $userHasImage)
+            <img src="{{ $avatarUrl }}" alt="User avatar" class="rounded-circle" width="40" height="40"
+              onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
           @else
-            <span class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
+            <span
+              class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
           @endif
         </div>
       </a>
@@ -105,10 +111,12 @@
             <div class="d-flex align-items-center">
               <div class="flex-shrink-0 me-2">
                 <div class="avatar avatar-online">
-                  @if($user && $userHasImage)
-                    <img src="{{ $avatarUrl }}" alt="User avatar" class="w-px-40 h-auto rounded-circle" width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
+                  @if ($user && $userHasImage)
+                    <img src="{{ $avatarUrl }}" alt="User avatar" class="w-px-40 h-auto rounded-circle"
+                      width="40" height="40" onerror="this.onerror=null;this.src='{{ $defaultAvatar }}';" />
                   @else
-                    <span class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
+                    <span
+                      class="avatar-initial rounded-circle bg-label-primary w-px-40 h-px-40 d-flex align-items-center justify-content-center">{{ $initials }}</span>
                   @endif
                 </div>
               </div>
@@ -142,7 +150,7 @@
         @endif
         <li>
           @php
-            $userRole = $user ? ($user->role ?? 'user') : null;
+            $userRole = $user ? $user->role ?? 'user' : null;
           @endphp
           @if ($user)
             @if ($userRole === 'student')
@@ -150,35 +158,35 @@
                 <i class="icon-base ri ri-checkbox-circle-line icon-22px me-3"></i>
                 <span class="align-middle">Attendance Today</span>
               </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{{ route('student.dashboard') }}">
-                <i class="icon-base ri ri-dashboard-line icon-22px me-3"></i>
-                <span class="align-middle">Student Dashboard</span>
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{{ route('password.change.edit') }}">
-                <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
-                <span class="align-middle">Change Password</span>
-              </a>
-            @elseif ($userRole === 'lecturer')
-              <a class="dropdown-item" href="{{ route('lecturer.attendance.index') }}">
-                <i class="icon-base ri ri-clipboard-line icon-22px me-3"></i>
-                <span class="align-middle">Attendance</span>
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{{ route('password.change.edit') }}">
-                <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
-                <span class="align-middle">Change Password</span>
-              </a>
-            @elseif ($userRole === 'admin')
-              <a class="dropdown-item" href="{{ url('/admin/dashboard') }}">
-                <i class="icon-base ri ri-bar-chart-line icon-22px me-3"></i>
-                <span class="align-middle">Admin Dashboard</span>
-              </a>
-            @endif
+        </li>
+        <li>
+          <a class="dropdown-item" href="{{ route('student.dashboard') }}">
+            <i class="icon-base ri ri-dashboard-line icon-22px me-3"></i>
+            <span class="align-middle">Student Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item" href="{{ route('password.change.edit') }}">
+            <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
+            <span class="align-middle">Change Password</span>
+          </a>
+        @elseif ($userRole === 'lecturer')
+          <a class="dropdown-item" href="{{ route('lecturer.attendance.index') }}">
+            <i class="icon-base ri ri-clipboard-line icon-22px me-3"></i>
+            <span class="align-middle">Attendance</span>
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item" href="{{ route('password.change.edit') }}">
+            <i class="icon-base ri ri-key-2-line icon-22px me-3"></i>
+            <span class="align-middle">Change Password</span>
+          </a>
+        @elseif ($userRole === 'admin')
+          <a class="dropdown-item" href="{{ url('/admin/dashboard') }}">
+            <i class="icon-base ri ri-bar-chart-line icon-22px me-3"></i>
+            <span class="align-middle">Admin Dashboard</span>
+          </a>
+          @endif
           @endif
         </li>
         @if ($user && $jetstreamEnabled && Laravel\Jetstream\Jetstream::hasTeamFeatures())
@@ -228,6 +236,26 @@
         <li>
           <div class="dropdown-divider my-1"></div>
         </li>
+
+        {{-- Role Switcher --}}
+        @if ($user && count($user->getAllRoles()) > 1)
+          <li>
+            <h6 class="dropdown-header">Switch Role</h6>
+          </li>
+          <li>
+            <div id="role-switcher-container" class="px-2">
+              <div class="text-center py-2">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="dropdown-divider my-1"></div>
+          </li>
+        @endif
+
         @auth
           <li>
             <div class="d-grid px-4 pt-2 pb-1">
@@ -257,3 +285,104 @@
     <!--/ User -->
   </ul>
 </div>
+
+@if ($user && count($user->getAllRoles()) > 1)
+  <script>
+    // Load available roles for role switcher
+    document.addEventListener('DOMContentLoaded', function() {
+      loadAvailableRoles();
+    });
+
+    function loadAvailableRoles() {
+      fetch('{{ route('role.available') }}')
+        .then(response => response.json())
+        .then(data => {
+          renderRoleSwitcher(data);
+        })
+        .catch(error => {
+          console.error('Error loading roles:', error);
+          document.getElementById('role-switcher-container').innerHTML =
+            '<small class="text-danger px-2">Failed to load roles</small>';
+        });
+    }
+
+    function renderRoleSwitcher(data) {
+      const container = document.getElementById('role-switcher-container');
+
+      const rolesHtml = data.roles.map(role => {
+        const isActive = role.is_active;
+        const displayName = role.display_name;
+        const context = role.context ?
+          `<br><small class="text-muted">${Object.values(role.context).filter(v => v).join(' - ')}</small>` : '';
+
+        return `
+        <a class="dropdown-item ${isActive ? 'active' : ''}"
+           href="javascript:void(0);"
+           onclick="switchRole('${role.role}')"
+           ${isActive ? 'style="pointer-events: none;"' : ''}>
+          <div class="d-flex align-items-center">
+            <i class="icon-base ri ${getRoleIcon(role.role)} icon-22px me-2"></i>
+            <div class="flex-grow-1">
+              <span>${displayName}</span>
+              ${context}
+              ${role.is_primary ? '<span class="badge bg-label-primary ms-2">Primary</span>' : ''}
+              ${isActive ? '<i class="ri-check-line ms-2"></i>' : ''}
+            </div>
+          </div>
+        </a>
+      `;
+      }).join('');
+
+      container.innerHTML = rolesHtml;
+    }
+
+    function getRoleIcon(role) {
+      const icons = {
+        'admin': 'ri-shield-user-line',
+        'super_admin': 'ri-shield-star-line',
+        'principal': 'ri-user-star-line',
+        'registrar': 'ri-file-user-line',
+        'campus_chief': 'ri-building-line',
+        'qa_director': 'ri-award-line',
+        'dean': 'ri-user-2-line',
+        'hod': 'ri-user-3-line',
+        'lecturer': 'ri-book-open-line',
+        'student': 'ri-graduation-cap-line',
+      };
+      return icons[role] || 'ri-user-line';
+    }
+
+    function switchRole(role) {
+      // Show loading state
+      const container = document.getElementById('role-switcher-container');
+      container.innerHTML =
+        '<div class="text-center py-2"><div class="spinner-border spinner-border-sm" role="status"></div></div>';
+
+      fetch('{{ route('role.switch') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({
+            role: role
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Redirect to appropriate dashboard
+            window.location.href = data.redirect_url;
+          } else {
+            alert(data.message);
+            loadAvailableRoles();
+          }
+        })
+        .catch(error => {
+          console.error('Error switching role:', error);
+          alert('Failed to switch role. Please try again.');
+          loadAvailableRoles();
+        });
+    }
+  </script>
+@endif

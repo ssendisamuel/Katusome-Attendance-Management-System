@@ -10,7 +10,7 @@
       "slug": "admin.dashboard"
     },
     {
-      "menuHeader": "MUBS"
+      "menuHeader": "Organization"
     },
     {
       "url": "/admin/campuses",
@@ -58,22 +58,98 @@
       "slug": "admin.program-courses.index"
     },
     {
-      "url": "/admin/course-lecturers",
-      "name": "Teaching Load",
-      "icon": "menu-icon icon-base ri ri-exchange-line",
-      "slug": "admin.course-lecturers.index"
-    },
-    {
       "url": "/admin/groups",
       "name": "Groups",
       "icon": "menu-icon icon-base ri ri-group-line",
       "slug": "admin.groups.index"
     },
     {
+      "menuHeader": "Users & Roles"
+    },
+    {
+      "url": "/admin/students",
+      "name": "Students",
+      "icon": "menu-icon icon-base ri ri-graduation-cap-line",
+      "slug": "admin.students.index"
+    },
+    {
+      "url": "/admin/enrollments",
+      "name": "Student Enrollments",
+      "icon": "menu-icon icon-base ri ri-article-line",
+      "slug": "admin.enrollments.index"
+    },
+    {
+      "url": "/admin/lecturers",
+      "name": "Lecturers",
+      "icon": "menu-icon icon-base ri ri-user-star-line",
+      "slug": "admin.lecturers.index"
+    },
+    {
+      "url": "/admin/course-lecturers",
+      "name": "Teaching Load",
+      "icon": "menu-icon icon-base ri ri-exchange-line",
+      "slug": "admin.course-lecturers.index"
+    },
+    {
       "url": "/admin/course-leaders",
       "name": "Course Leaders",
       "icon": "menu-icon icon-base ri ri-star-smile-line",
       "slug": "admin.course-leaders.index"
+    },
+    {
+      "name": "Staff & Administrators",
+      "icon": "menu-icon icon-base ri ri-team-line",
+      "slug": "admin.users",
+      "submenu": [
+        {
+          "url": "/admin/users/all-staff",
+          "name": "All Staff",
+          "icon": "menu-icon icon-base ri ri-team-line",
+          "slug": "admin.users.all-staff"
+        },
+        {
+          "url": "/admin/users/hod",
+          "name": "HODs",
+          "icon": "menu-icon icon-base ri ri-user-settings-line",
+          "slug": "admin.users.hod"
+        },
+        {
+          "url": "/admin/users/dean",
+          "name": "Deans",
+          "icon": "menu-icon icon-base ri ri-user-star-line",
+          "slug": "admin.users.dean"
+        },
+        {
+          "url": "/admin/users/qa_director",
+          "name": "QA Staff",
+          "icon": "menu-icon icon-base ri ri-shield-check-line",
+          "slug": "admin.users.qa"
+        },
+        {
+          "url": "/admin/users/principal",
+          "name": "Principal",
+          "icon": "menu-icon icon-base ri ri-award-line",
+          "slug": "admin.users.principal"
+        },
+        {
+          "url": "/admin/users/registrar",
+          "name": "School Registrar",
+          "icon": "menu-icon icon-base ri ri-file-user-line",
+          "slug": "admin.users.registrar"
+        },
+        {
+          "url": "/admin/users/campus_chief",
+          "name": "Campus Chiefs",
+          "icon": "menu-icon icon-base ri ri-flag-line",
+          "slug": "admin.users.campus_chief"
+        },
+        {
+          "url": "/admin/admins",
+          "name": "System Admins",
+          "icon": "menu-icon icon-base ri ri-shield-user-line",
+          "slug": "admin.admins.index"
+        }
+      ]
     },
     {
       "menuHeader": "Attendance"
@@ -92,9 +168,12 @@
     },
     {
       "url": "/admin/attendance",
-      "name": "Attendance",
+      "name": "Attendance Records",
       "icon": "menu-icon icon-base ri ri-check-double-line",
       "slug": "admin.attendance.index"
+    },
+    {
+      "menuHeader": "Reports"
     },
     {
       "url": "/admin/reports",
@@ -113,6 +192,12 @@
           "name": "Daily Attendance",
           "icon": "menu-icon icon-base ri ri-calendar-check-line",
           "slug": "admin.reports.daily"
+        },
+        {
+          "url": "/admin/reports/schedules",
+          "name": "Class Attendance",
+          "icon": "menu-icon icon-base ri ri-live-line",
+          "slug": "admin.reports.schedules"
         },
         {
           "url": "/admin/reports/monthly",
@@ -157,79 +242,6 @@
           "slug": "admin.reports.program"
         }
       ]
-    },
-    {
-      "menuHeader": "Users"
-    },
-    {
-      "url": "/admin/students",
-      "name": "Students",
-      "icon": "menu-icon icon-base ri ri-graduation-cap-line",
-      "slug": "admin.students.index"
-    },
-    {
-      "url": "/admin/enrollments",
-      "name": "Student Enrollments",
-      "icon": "menu-icon icon-base ri ri-article-line",
-      "slug": "admin.enrollments.index"
-    },
-    {
-      "url": "/admin/lecturers",
-      "name": "Lecturers",
-      "icon": "menu-icon icon-base ri ri-user-star-line",
-      "slug": "admin.lecturers.index"
-    },
-    {
-      "name": "Staff",
-      "icon": "menu-icon icon-base ri ri-team-line",
-      "slug": "admin.users",
-      "submenu": [
-        {
-          "url": "/admin/users/hod",
-          "name": "HODs",
-          "icon": "menu-icon icon-base ri ri-user-settings-line",
-          "slug": "admin.users.hod"
-        },
-        {
-          "url": "/admin/users/dean",
-          "name": "Deans",
-          "icon": "menu-icon icon-base ri ri-user-star-line",
-          "slug": "admin.users.dean"
-        },
-        {
-          "url": "/admin/users/qa_director",
-          "name": "QA Staff",
-          "icon": "menu-icon icon-base ri ri-shield-check-line",
-          "slug": "admin.users.qa"
-        },
-        {
-          "url": "/admin/users/principal",
-          "name": "Principal",
-          "icon": "menu-icon icon-base ri ri-award-line",
-          "slug": "admin.users.principal"
-        },
-        {
-          "url": "/admin/users/registrar",
-          "name": "School Registrar",
-          "icon": "menu-icon icon-base ri ri-file-user-line",
-          "slug": "admin.users.registrar"
-        },
-        {
-          "url": "/admin/users/campus_chief",
-          "name": "Campus Chiefs",
-          "icon": "menu-icon icon-base ri ri-flag-line",
-          "slug": "admin.users.campus_chief"
-        }
-      ]
-    },
-    {
-      "url": "/admin/admins",
-      "name": "Admins",
-      "icon": "menu-icon icon-base ri ri-shield-user-line",
-      "slug": "admin.admins.index"
-    },
-    {
-      "menuHeader": "Reports"
     },
     {
       "menuHeader": "Settings"

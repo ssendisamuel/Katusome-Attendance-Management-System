@@ -20,10 +20,13 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'title',
         'email',
+        'phone',
         'password',
         'must_change_password',
         'role',
+        'active_role',
         'avatar_url',
     ];
 
@@ -59,6 +62,16 @@ class User extends Authenticatable
     public function lecturer()
     {
         return $this->hasOne(Lecturer::class);
+    }
+
+    public function userRoles()
+    {
+        return $this->hasMany(UserRole::class);
+    }
+
+    public function activeUserRoles()
+    {
+        return $this->hasMany(UserRole::class)->where('is_active', true);
     }
 
     // ── Role constants ──
@@ -102,5 +115,61 @@ class User extends Authenticatable
     public function hodOfDepartment()
     {
         return $this->hasOne(Department::class, 'hod_user_id');
+    }
+
+    /**
+     * Check if user has a specific role
+     */
+    public function hasRole(string $role): bool
+    {
+        // Check primary role
+        if ($this->role === $role) {
+            return true;
+        }
+
+        // Check additional roles
+        return $this->activeUserRoles()->where('role', $role)->exists();
+    }
+
+    /**
+     * Get all roles for this user
+     */
+    public function getAllRoles(): array
+    {
+        $roles = [$this->role];
+
+        $additionalRoles = $this->activeUserRoles()->pluck('role')->toArray();
+
+        return array_unique(array_merge($roles, $additionalRoles));
+    }
+
+    /**
+     * Get the current active role (for role switching)
+     */
+    public function getCurrentRole(): string
+    {
+        return $this->active_role ?? $this->role;
+    }
+
+    /**
+     * Switch to a different role
+     */
+    public function switchRole(string $role): bool
+    {
+        if ($this->hasRole($role)) {
+            $this->active_role = $role;
+            $this->save();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get available roles for switching
+     */
+    public function getAvailableRoles()
+    {
+        return $this->activeUserRoles()->with(['campus', 'faculty', 'department'])->get();
     }
 }

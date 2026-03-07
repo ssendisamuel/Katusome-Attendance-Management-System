@@ -36,3 +36,4 @@ yarn-error.log
 /.nova
 /.zed
 /coverage/
+.env_live_production
